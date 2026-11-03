@@ -458,3 +458,46 @@ test('registration contract matches RegisterRequest fields exactly', () => {
   assert.deepStrictEqual(actualKeys, expectedKeys);
 });
 
+// SecurityFilterChain & Public Endpoints tests
+function isPublicEndpointRule(method, path) {
+  if (method === 'POST') {
+    if (path === '/api/v1/auth/register' || path === '/auth/register') return true;
+    if (path === '/api/v1/auth/login' || path === '/auth/login') return true;
+    if (path === '/api/v1/scans' || path === '/scans') return true;
+  }
+  if (path.startsWith('/api/v1/health') || path === '/health') return true;
+  if (path.startsWith('/internal/v1/')) return true;
+  if (method === 'GET' && (path.startsWith('/api/v1/scans') || path.startsWith('/scans'))) return true;
+  return false;
+}
+
+function shouldInjectAuthHeader(endpoint, existingToken) {
+  const isPublic = endpoint.includes('/auth/register') ||
+                   endpoint.includes('/auth/login') ||
+                   endpoint.includes('/health');
+  if (isPublic) return false;
+  return Boolean(existingToken && existingToken !== 'undefined' && existingToken !== 'null');
+}
+
+test('isPublicEndpointRule permits registration and login without existing credentials', () => {
+  assert.strictEqual(isPublicEndpointRule('POST', '/api/v1/auth/register'), true);
+  assert.strictEqual(isPublicEndpointRule('POST', '/api/v1/auth/login'), true);
+  assert.strictEqual(isPublicEndpointRule('GET', '/api/v1/health'), true);
+  assert.strictEqual(isPublicEndpointRule('GET', '/api/v1/auth/me'), false);
+  assert.strictEqual(isPublicEndpointRule('POST', '/api/v1/auth/logout'), false);
+});
+
+test('shouldInjectAuthHeader skips public auth and health endpoints', () => {
+  const staleToken = 'sentinel_sec_old_expired_token';
+
+  // Public endpoints MUST NOT inject token
+  assert.strictEqual(shouldInjectAuthHeader('/auth/register', staleToken), false);
+  assert.strictEqual(shouldInjectAuthHeader('/auth/login', staleToken), false);
+  assert.strictEqual(shouldInjectAuthHeader('/health', staleToken), false);
+
+  // Protected endpoints MUST inject token
+  assert.strictEqual(shouldInjectAuthHeader('/auth/me', staleToken), true);
+  assert.strictEqual(shouldInjectAuthHeader('/auth/logout', staleToken), true);
+  assert.strictEqual(shouldInjectAuthHeader('/scans?myScansOnly=true', staleToken), true);
+});
+

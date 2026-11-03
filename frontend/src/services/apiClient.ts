@@ -137,11 +137,16 @@ export async function request<T>(endpoint: string, options: RequestInit = {}): P
     headers.set('X-Requested-With', 'XMLHttpRequest');
   }
 
-  // Inject Bearer token if present and not explicitly provided
-  if (!headers.has('Authorization')) {
+  // Public endpoints MUST NEVER send an existing or stale Authorization header
+  const isPublicEndpoint = endpoint.includes('/auth/register') || 
+                           endpoint.includes('/auth/login') || 
+                           endpoint.includes('/health');
+
+  // Inject Bearer token only for non-public requests if not explicitly provided
+  if (!headers.has('Authorization') && !isPublicEndpoint) {
     try {
       const token = localStorage.getItem('pkgsentinel_auth_token');
-      if (token) {
+      if (token && token.trim().length > 0 && token !== 'undefined' && token !== 'null') {
         headers.set('Authorization', `Bearer ${token}`);
       }
     } catch {
