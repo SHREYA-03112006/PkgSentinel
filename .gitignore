@@ -69,6 +69,7 @@ dist-ssr/
 /tmp/
 *.tmp
 *.log
+leader-frontend/
 
 # IDEs & System
 .idea/

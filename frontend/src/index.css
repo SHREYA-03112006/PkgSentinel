@@ -3,27 +3,42 @@
 @tailwind utilities;
 
 @layer base {
+  * {
+    border-color: #E2E8F0;
+  }
   body {
-    @apply bg-sentinel-bg text-slate-100;
+    background-color: #FAF8F5;
+    color: #1E293B;
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   }
 }
 
-/* Custom cyber scrollbars */
+/* Custom subtle scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
-
 ::-webkit-scrollbar-track {
-  background: #0a0f1d;
+  background: #F1F5F9;
 }
-
 ::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 3px;
+  background: #CBD5E1;
+  border-radius: 9999px;
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: #06b6d4;
+  background: #94A3B8;
 }
 
+/* Glassmorphism utilities */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(226, 232, 240, 0.7);
+}
