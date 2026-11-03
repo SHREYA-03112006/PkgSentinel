@@ -1,0 +1,122 @@
+version: '3.8'
+
+services:
+  # -------------------------------------------------------------
+  # 1. PostgreSQL Relational Database (Persistent Authoritative DB)
+  # -------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: pkgsentinel-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-pkgsentinel}
+      POSTGRES_USER: ${POSTGRES_USER:-sentinel}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sentinel_dev_secret_change_me}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentinel -d pkgsentinel"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pkgsentinel-net
+
+  # -------------------------------------------------------------
+  # 2. Redis 7 Cache & Job Queue (Redis Streams)
+  # -------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: pkgsentinel-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pkgsentinel-net
+
+  # -------------------------------------------------------------
+  # 3. Spring Boot Backend Orchestrator (State Owner)
+  # -------------------------------------------------------------
+  backend:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.backend
+    container_name: pkgsentinel-backend
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-pkgsentinel}
+      POSTGRES_USER: ${POSTGRES_USER:-sentinel}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sentinel_dev_secret_change_me}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      BACKEND_PORT: 8080
+      LOG_LEVEL: INFO
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - pkgsentinel-net
+
+  # -------------------------------------------------------------
+  # 4. Python Security Engine (FastAPI & Heuristic Worker)
+  # -------------------------------------------------------------
+  security-engine:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.security-engine
+    container_name: pkgsentinel-security-engine
+    restart: unless-stopped
+    environment:
+      SECURITY_ENGINE_REDIS_HOST: redis
+      SECURITY_ENGINE_REDIS_PORT: 6379
+      SECURITY_ENGINE_BACKEND_CALLBACK_URL: http://backend:8080/internal/v1/scans
+      EPHEMERAL_WORKSPACE_DIR: /tmp/pkgsentinel/workspaces
+    ports:
+      - "8000:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - pkgsentinel-net
+
+  # -------------------------------------------------------------
+  # 5. React Frontend (Web Dashboard)
+  # -------------------------------------------------------------
+  frontend:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.frontend
+    container_name: pkgsentinel-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - pkgsentinel-net
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  pkgsentinel-net:
+    driver: bridge

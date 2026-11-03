@@ -1,0 +1,25 @@
+# Stage 1: Build Java Application
+FROM eclipse-temurin:21-jdk-alpine AS builder
+WORKDIR /workspace/app
+
+# Copy Maven files
+COPY backend/pom.xml .
+COPY backend/.mvn .mvn
+COPY backend/src src
+
+# Install maven & package artifact
+RUN apk add --no-cache maven && \
+    mvn clean package -DskipTests
+
+# Stage 2: Runtime image
+FROM eclipse-temurin:21-jre-alpine
+WORKDIR /app
+
+# Run as non-root unprivileged user
+RUN addgroup -S sentinel && adduser -S sentinel -G sentinel
+USER sentinel:sentinel
+
+COPY --from=builder /workspace/app/target/*.jar app.jar
+
+EXPOSE 8080
+ENTRYPOINT ["java", "-Djava.security.egd=file:/dev/./urandom", "-jar", "app.jar"]

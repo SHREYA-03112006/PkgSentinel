@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pkgsentinel-sandbox-controller"
+version = "0.1.0"
+description = "Dedicated Sandbox Orchestrator for Rootless Docker/gVisor Canaries"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "PkgSentinel Security Team" }
+]
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "pydantic>=2.8.0",
+    "pydantic-settings>=2.4.0"
+]

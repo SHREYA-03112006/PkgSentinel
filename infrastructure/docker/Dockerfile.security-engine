@@ -1,0 +1,26 @@
+FROM python:3.11-slim
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Run as non-root user
+RUN groupadd -g 10001 sentinel && \
+    useradd -u 10001 -g sentinel -m -s /bin/bash sentinel
+
+COPY security-engine/pyproject.toml .
+COPY security-engine/README.md .
+COPY security-engine/engine engine
+
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -e .
+
+USER sentinel:sentinel
+
+EXPOSE 8000
+CMD ["uvicorn", "engine.main:app", "--host", "0.0.0.0", "--port", "8000"]
