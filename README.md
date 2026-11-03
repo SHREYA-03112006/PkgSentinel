@@ -1,11 +1,13 @@
 # 🛡️ PkgSentinel
 ### Intelligent Open-Source Supply Chain Security Platform
 
-**Detect suspicious packages before they become a security risk.**
+**Identify suspicious packages. Analyze security risks. Make informed dependency decisions.**
 
-PkgSentinel is an intelligent supply-chain security platform designed to analyze npm and PyPI packages for suspicious behavior, potentially malicious code patterns, and software supply-chain threats.
+PkgSentinel is an intelligent software supply-chain security platform designed to analyze npm and PyPI packages for suspicious behavior, potentially malicious code patterns, and supply-chain threats.
 
-Unlike traditional vulnerability scanners that primarily rely on known CVE databases, PkgSentinel performs static code analysis, package metadata inspection, behavioral indicator detection, and explainable risk scoring to identify potentially dangerous packages.
+It combines package metadata inspection, static code analysis, contextual behavior detection, and explainable risk scoring to identify potentially dangerous dependencies before they enter your development environment.
+
+Unlike traditional vulnerability scanners that primarily depend on known CVE databases, PkgSentinel focuses on analyzing package behavior and suspicious code characteristics.
 
 ---
 
@@ -14,47 +16,68 @@ Unlike traditional vulnerability scanners that primarily rely on known CVE datab
 ### 🔍 Multi-Ecosystem Package Analysis
 - Supports npm and PyPI package ecosystems.
 - Retrieves package metadata and downloadable distributions.
-- Supports automatic latest-version resolution.
+- Automatically resolves the latest available package version.
+- Supports explicit version selection.
 - Performs package integrity and archive safety checks.
+- Handles invalid package names and unavailable versions.
 
-### 🧠 Static Security Analysis
-- Python AST-based analysis.
-- JavaScript AST-based analysis.
-- Suspicious dynamic execution detection.
-- Dynamic import and module loading analysis.
+### 🧠 Context-Aware Static Security Analysis
+
+**Python Analysis**
+- Python AST-based security analysis.
+- Dynamic execution detection (`exec`, `eval`, `compile`).
+- Dynamic import analysis.
+- Suspicious subprocess and command execution detection.
+- Environment variable and sensitive-data access analysis.
 - Obfuscation and high-entropy string detection.
-- Typosquatting and package-name similarity detection.
-- Suspicious metadata and package behavior indicators.
 
-### ⚖️ Intelligent Risk Scoring
+**JavaScript Analysis**
+- JavaScript static code analysis.
+- Suspicious dynamic module loading.
+- Dynamic execution indicators.
+- Package lifecycle script inspection.
+- Suspicious code patterns.
+
+### 🎯 Contextual Detection & False-Positive Reduction
+
+PkgSentinel evaluates suspicious operations in context rather than treating every occurrence as malicious.
+
+- Distinguishes ordinary subprocess usage from suspicious command execution.
+- Evaluates shell execution and potentially unsafe command construction.
+- Considers attacker-controlled arguments and suspicious execution patterns.
+- Differentiates legitimate package functionality from potentially dangerous behavior.
+- Applies contextual analysis to test files and development utilities.
+- Avoids automatically classifying repeated generic operations as high-confidence threats.
+
+### ⚖️ Explainable Risk Scoring
+
 - Aggregates security findings into a normalized risk score.
-- Applies severity and confidence-based evaluation.
-- Uses diminishing returns for repeated detection rules.
-- Generates explainable findings with file paths and line numbers.
-- Produces risk classifications:
-  - SAFE
-  - SUSPICIOUS
-  - MALICIOUS / BLOCK
+- Uses severity and confidence-based evaluation.
+- Applies diminishing returns to repeated detection rules.
+- Gives greater importance to independent and corroborating indicators.
+- Provides explainable findings with file paths, line numbers, and evidence.
+- Produces actionable risk classifications.
 
 ### 📊 Security Dashboard
 - Package scanning interface.
 - Scan history and detailed reports.
 - Risk scores and verdict visualization.
-- Explainable security findings.
+- Security findings with contextual evidence.
 - Authenticated user accounts.
+- User-scoped scan authorization.
 
 ### ⚙️ Asynchronous Scan Processing
 - Spring Boot backend orchestration.
 - Redis Streams-based job processing.
 - Dedicated Python security-analysis worker.
 - Transactional scan lifecycle management.
-- Authenticated worker callbacks and retry handling.
+- Authenticated worker callbacks.
+- Retry handling and asynchronous status updates.
 
 ### 🔐 Security-Oriented Design
-- Password hashing using PBKDF2.
+- PBKDF2 password hashing.
 - Database-backed authentication sessions.
-- User-scoped scan authorization.
-- Allowlisted registry hosts.
+- Registry host allowlisting.
 - DNS and private-IP protections.
 - Safe package archive extraction.
 - Download size restrictions.
@@ -74,8 +97,9 @@ flowchart TD
     F --> G[npm Registry]
     F --> H[PyPI Registry]
     F --> I[Static Analysis]
-    I --> J[Risk Scoring Engine]
-    J --> E
+    I --> J[Contextual Detection]
+    J --> K[Risk Scoring Engine]
+    K --> E
     E --> B
     B --> A
 ```
@@ -86,10 +110,10 @@ flowchart TD
 2. Backend validates the request and creates a scan job.
 3. Scan job is published through Redis Streams.
 4. Python worker retrieves package metadata and distribution files.
-5. Security engine performs static analysis and detection.
-6. Findings are processed by the risk-scoring engine.
+5. Security engine performs static analysis and contextual detection.
+6. Findings are evaluated by the risk-scoring engine.
 7. Worker sends the authenticated scan result to the backend.
-8. Dashboard displays the final report.
+8. Dashboard displays the final security report.
 
 ---
 
@@ -97,11 +121,12 @@ flowchart TD
 
 | Component | Technologies |
 |---|---|
-| Frontend | React, TypeScript, Tailwind CSS |
+| Frontend | React, TypeScript |
+| Styling | Tailwind CSS |
 | UI & Visualization | Lucide, Recharts |
 | Backend | Java 21, Spring Boot 3 |
 | Security Engine | Python 3.11+, FastAPI |
-| Static Analysis | Python AST, JavaScript AST |
+| Static Analysis | Python AST, JavaScript analysis |
 | Database | PostgreSQL |
 | Message Queue | Redis Streams |
 | Containerization | Docker, Docker Compose |
@@ -127,10 +152,11 @@ PkgSentinel/
 │   │   │   └── static/
 │   │   ├── ingestion/
 │   │   └── ...
+│   │
 │   └── tests/
 │
 ├── infrastructure/
-│   └── Dockerfiles and infrastructure
+│   └── Docker and infrastructure configuration
 │
 ├── docker-compose.yml
 │
@@ -156,7 +182,7 @@ cd PkgSentinel
 
 ### 2. Configure Environment
 
-Review the environment configuration and required variables referenced by `docker-compose.yml` and the service configuration files.
+Review the environment configuration and required variables referenced by `docker-compose.yml` and individual service configuration files.
 
 Do not commit production secrets or credentials to GitHub.
 
@@ -172,7 +198,7 @@ docker compose up -d --build
 docker compose ps
 ```
 
-Ensure the required services are running and health checks are passing.
+Ensure the required services are running and their health checks are passing.
 
 ### 5. Access the Application
 
@@ -190,23 +216,27 @@ Ensure the required services are running and health checks are passing.
 docker compose down
 ```
 
-To preserve database data, do not use `docker compose down -v` unless you intentionally want to delete the volumes.
+To preserve database data, avoid using `docker compose down -v` unless you intentionally want to delete the database volumes.
 
 ---
 
 ## 🧪 Testing
 
-The security engine includes automated tests covering:
+PkgSentinel includes automated tests for its security-analysis components.
 
-- Python AST detection.
+Test coverage includes:
+
+- Python AST-based detection.
 - JavaScript static analysis.
+- Dynamic execution indicators.
+- Subprocess detection and contextual classification.
 - Package ingestion and archive extraction.
 - Registry metadata and version resolution.
 - Entropy analysis.
-- Risk scoring.
-- Detection confidence and repeated-rule handling.
+- Risk scoring and repeated-rule aggregation.
+- Detection confidence and regression scenarios.
 
-Run the Python test suite:
+### Run Python Tests
 
 ```bash
 cd security-engine
@@ -220,12 +250,28 @@ pytest
 | Verdict | Meaning |
 |---|---|
 | SAFE | No significant suspicious indicators detected |
-| SUSPICIOUS | One or more potentially risky indicators require investigation |
+| SUSPICIOUS | Potentially risky indicators require investigation |
 | MALICIOUS / BLOCK | Strong evidence of malicious behavior or high-confidence threat indicators |
 
-**Important:** A SAFE verdict does not guarantee that a package is completely free from vulnerabilities or malicious behavior. Similarly, suspicious API usage does not automatically prove malicious intent.
+Risk scores are based on detected evidence, severity, confidence, and contextual analysis.
 
-PkgSentinel uses static indicators and contextual analysis to support security decisions.
+A high score does not automatically prove malicious intent, and a low score does not guarantee that a package is completely safe.
+
+---
+
+## 🔬 Detection Philosophy
+
+PkgSentinel aims to balance two important security objectives:
+
+**1. Reduce False Positives**
+
+Legitimate operations such as subprocess calls, dynamic imports, environment checks, and package testing should not automatically be treated as malicious.
+
+**2. Preserve True-Positive Detection**
+
+Suspicious execution patterns, unsafe command construction, obfuscated payloads, and corroborating threat indicators should retain appropriate severity.
+
+The goal is not simply to maximize risk scores, but to generate meaningful and explainable security findings.
 
 ---
 
@@ -240,9 +286,10 @@ Potential future enhancements include:
 - CI/CD security enforcement.
 - Expanded ecosystem support.
 - Threat intelligence integration.
-- Advanced package dependency graph analysis.
+- Advanced dependency graph analysis.
+- Automated security benchmark evaluation.
 
-Dynamic sandbox execution and external CI/CD integrations are future extensions, not capabilities currently claimed as operational.
+Dynamic sandbox execution and external CI/CD integrations are planned extensions, not capabilities currently claimed as operational.
 
 ---
 
@@ -250,9 +297,11 @@ Dynamic sandbox execution and external CI/CD integrations are future extensions,
 
 PkgSentinel is a security research and analysis project.
 
-It is designed to identify suspicious package characteristics through static analysis and contextual risk assessment. It is not a replacement for comprehensive security audits, runtime sandboxing, vulnerability scanners, or professional security review.
+It identifies suspicious package characteristics through static analysis and contextual risk assessment. It is not a replacement for comprehensive security audits, runtime sandboxing, vulnerability scanners, or professional security reviews.
 
 Detection results should be treated as security indicators rather than absolute proof.
+
+A SAFE verdict does not guarantee that a package is free from vulnerabilities or malicious behavior.
 
 ---
 
@@ -263,6 +312,8 @@ Detection results should be treated as security indicators rather than absolute 
 B.Tech – Computer Science (Data Science)
 
 GitHub: [@SHREYA-03112006](https://github.com/SHREYA-03112006)
+
+**Repository:** [github.com/SHREYA-03112006/PkgSentinel](https://github.com/SHREYA-03112006/PkgSentinel)
 
 ---
 
