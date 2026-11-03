@@ -79,3 +79,4 @@ If judges ask about the underlying system:
 - **Security Engine**: Python 3.11+ (FastAPI, AST visitor engines, Esprima JS parser, Shannon entropy, safe TarSlip/ZipSlip decompression).
 - **Transport**: Redis Streams (`stream:scan-jobs`) with consumer groups, lease heartbeats (30s TTL), and dead-letter queue.
 - **Frontend**: React 18 + TypeScript + Vite + Tailwind CSS (responsive, zero-fluff minimal SaaS design).
+
