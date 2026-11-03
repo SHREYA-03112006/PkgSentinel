@@ -5,8 +5,9 @@ Secure registry metadata resolver and package archive streaming downloader.
 import os
 import tempfile
 import urllib.parse
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import httpx
+from packaging.version import parse as parse_version
 
 from engine.ingestion.models import (
     Ecosystem,
@@ -26,6 +27,21 @@ from engine.ingestion.integrity import verify_file_integrity, compute_file_hashe
 DEFAULT_MAX_DOWNLOAD_BYTES = 100 * 1024 * 1024  # 100 MB
 CONNECT_TIMEOUT_SECS = 10.0
 READ_TIMEOUT_SECS = 30.0
+
+
+def is_latest_version(version: Optional[str]) -> bool:
+    """Returns True if the requested version indicates resolving the latest release."""
+    return not version or not version.strip() or version.strip().lower() == "latest"
+
+
+def is_stable_release(version_str: str) -> bool:
+    """Returns True if the version string represents a stable release (excluding prereleases/dev releases)."""
+    try:
+        parsed = parse_version(version_str)
+        return not (parsed.is_prerelease or parsed.is_devrelease)
+    except Exception:
+        lower = version_str.lower()
+        return not any(marker in lower for marker in ("a", "b", "rc", "dev", "alpha", "beta", "preview"))
 
 
 class RegistryDownloader:
@@ -86,17 +102,38 @@ class RegistryDownloader:
             raise RegistryResolutionError(f"Malformed JSON from npm registry: {e}")
 
         versions: Dict[str, Any] = data.get("versions", {})
-        version_data = versions.get(coords.version)
+        if not versions:
+            raise RegistryResolutionError(f"No versions found for npm package '{coords.name}'.")
+
+        # Determine target version without ever passing literal 'latest' into exact-version lookup
+        target_version = coords.version
+        if is_latest_version(target_version):
+            dist_tags = data.get("dist-tags", {})
+            latest_from_tag = dist_tags.get("latest")
+            if latest_from_tag and latest_from_tag in versions:
+                resolved_version = latest_from_tag
+            else:
+                # Fallback: resolve the latest stable release from versions dictionary
+                stable_versions = [v for v in versions.keys() if is_stable_release(v)]
+                candidates = stable_versions if stable_versions else list(versions.keys())
+                try:
+                    resolved_version = max(candidates, key=parse_version)
+                except Exception:
+                    resolved_version = candidates[-1]
+        else:
+            resolved_version = target_version.strip()
+
+        version_data = versions.get(resolved_version)
         if not version_data:
             raise RegistryResolutionError(
-                f"Version '{coords.version}' not found for npm package '{coords.name}'. "
+                f"Version '{resolved_version}' not found for npm package '{coords.name}'. "
                 f"Available versions count: {len(versions)}"
             )
 
         dist: Dict[str, Any] = version_data.get("dist", {})
         tarball_url = dist.get("tarball")
         if not tarball_url:
-            raise RegistryResolutionError(f"Missing tarball URL in npm metadata for {coords.name}@{coords.version}")
+            raise RegistryResolutionError(f"Missing tarball URL in npm metadata for {coords.name}@{resolved_version}")
 
         # Check integrity: prefer SRI integrity (sha512), fallback to shasum (sha1)
         integrity_val = dist.get("integrity")
@@ -106,10 +143,10 @@ class RegistryDownloader:
             algo = "sha1"
 
         if not integrity_val:
-            raise RegistryResolutionError(f"Missing integrity digest in npm metadata for {coords.name}@{coords.version}")
+            raise RegistryResolutionError(f"Missing integrity digest in npm metadata for {coords.name}@{resolved_version}")
 
         filename = os.path.basename(urllib.parse.urlparse(tarball_url).path)
-        release_date = data.get("time", {}).get(coords.version)
+        release_date = data.get("time", {}).get(resolved_version)
 
         return ResolvedDistribution(
             filename=filename,
@@ -119,6 +156,7 @@ class RegistryDownloader:
             integrity_algo=algo,
             size_bytes=dist.get("unpackedSize"),
             release_date=release_date,
+            resolved_version=resolved_version,
         )
 
     def _resolve_pypi(self, coords: PackageCoordinates) -> ResolvedDistribution:
@@ -143,10 +181,41 @@ class RegistryDownloader:
             raise RegistryResolutionError(f"Malformed JSON from PyPI registry: {e}")
 
         releases: Dict[str, Any] = data.get("releases", {})
-        release_files = releases.get(coords.version)
+        if not releases:
+            raise RegistryResolutionError(f"No releases found for PyPI package '{coords.name}'.")
+
+        # Determine target version without ever passing literal 'latest' into exact-version lookup
+        target_version = coords.version
+        if is_latest_version(target_version):
+            # Resolve the latest stable release from metadata
+            candidate_versions = [v for v, files in releases.items() if files]
+            if not candidate_versions:
+                candidate_versions = list(releases.keys())
+
+            stable_versions = [v for v in candidate_versions if is_stable_release(v)]
+            info_version = data.get("info", {}).get("version")
+
+            if stable_versions:
+                try:
+                    resolved_version = str(max(stable_versions, key=parse_version))
+                except Exception:
+                    resolved_version = stable_versions[-1]
+            elif info_version and info_version in releases and releases[info_version]:
+                resolved_version = info_version
+            elif candidate_versions:
+                try:
+                    resolved_version = str(max(candidate_versions, key=parse_version))
+                except Exception:
+                    resolved_version = candidate_versions[-1]
+            else:
+                raise RegistryResolutionError(f"No valid releases available for PyPI package '{coords.name}'.")
+        else:
+            resolved_version = target_version.strip()
+
+        release_files = releases.get(resolved_version)
         if not release_files:
             raise RegistryResolutionError(
-                f"Version '{coords.version}' not found for PyPI package '{coords.name}'."
+                f"Version '{resolved_version}' not found for PyPI package '{coords.name}'."
             )
 
         # Selection strategy: prefer bdist_wheel (.whl), fallback to sdist (.tar.gz / .zip)
@@ -172,7 +241,7 @@ class RegistryDownloader:
 
         download_url = selected_file.get("url")
         if not download_url:
-            raise RegistryResolutionError(f"Missing download URL in PyPI file entry for {coords.name}@{coords.version}")
+            raise RegistryResolutionError(f"Missing download URL in PyPI file entry for {coords.name}@{resolved_version}")
 
         digests = selected_file.get("digests", {})
         sha256_digest = digests.get("sha256")
@@ -183,7 +252,7 @@ class RegistryDownloader:
             algo = "md5"
 
         if not sha256_digest:
-            raise RegistryResolutionError(f"Missing integrity digest in PyPI metadata for {coords.name}@{coords.version}")
+            raise RegistryResolutionError(f"Missing integrity digest in PyPI metadata for {coords.name}@{resolved_version}")
 
         filename = selected_file.get("filename") or os.path.basename(urllib.parse.urlparse(download_url).path)
         upload_time = selected_file.get("upload_time_iso_8601")
@@ -196,6 +265,7 @@ class RegistryDownloader:
             integrity_algo=algo,
             size_bytes=selected_file.get("size"),
             release_date=upload_time,
+            resolved_version=resolved_version,
         )
 
     def download_archive(self, dist: ResolvedDistribution, destination_dir: str) -> str:

@@ -14,13 +14,15 @@ public record ScanRequest(
     @Pattern(regexp = "^[a-zA-Z0-9@_./~-]+$", message = "Package name contains invalid characters")
     String name,
 
-    @NotBlank(message = "Version cannot be blank")
     String version,
 
     ScanDepth depth
 ) {
+    public String versionOrDefault() {
+        return (version != null && !version.isBlank()) ? version.trim() : "latest";
+    }
+
     public ScanDepth depthOrDefault() {
         return depth != null ? depth : ScanDepth.FAST;
     }
 }
-

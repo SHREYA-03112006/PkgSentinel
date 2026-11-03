@@ -18,6 +18,18 @@ SEVERITY_WEIGHTS = {
     Severity.LOW: 3.0,
 }
 
+DIMINISHING_RETURNS = [1.0, 0.35, 0.15, 0.05]
+
+
+def get_diminishing_multiplier(occurrence_index: int) -> float:
+    """
+    Returns non-linear diminishing factor based on repeat occurrences of the same rule.
+    Prevents benign patterns replicated across many files from inflating risk score.
+    """
+    if occurrence_index < len(DIMINISHING_RETURNS):
+        return DIMINISHING_RETURNS[occurrence_index]
+    return DIMINISHING_RETURNS[-1]
+
 
 def deduplicate_findings(findings: List[SecurityFinding]) -> List[SecurityFinding]:
     """
@@ -62,17 +74,22 @@ class RiskScoringEngine:
         # 1. Deduplicate findings cleanly
         deduped = deduplicate_findings(raw_findings)
 
-        # 2. Compute Raw and Normalized Scores
+        # 2. Compute Raw and Normalized Scores with Rule-Level Diminishing Returns
         raw_score = 0.0
         total_weight = 0.0
         weighted_conf_sum = 0.0
         categories_present: Set[str] = set()
+        rule_counts: Dict[str, int] = defaultdict(int)
 
         for f in deduped:
-            weight = SEVERITY_WEIGHTS[f.severity]
-            raw_score += weight * f.confidence
-            total_weight += weight
-            weighted_conf_sum += weight * f.confidence
+            idx = rule_counts[f.rule_id]
+            rule_counts[f.rule_id] += 1
+            multiplier = get_diminishing_multiplier(idx)
+
+            effective_weight = SEVERITY_WEIGHTS[f.severity] * multiplier
+            raw_score += effective_weight * f.confidence
+            total_weight += effective_weight
+            weighted_conf_sum += effective_weight * f.confidence
             categories_present.add(f.category.value)
 
         # Normalized asymptotic curve: S_norm = 100 * (1 - e^(-S_raw / 45))
@@ -110,14 +127,25 @@ class RiskScoringEngine:
                 f"Multi-Vector Threat: {len(high_findings)} independent HIGH severity findings across {len(high_categories)} categories ({', '.join(sorted(high_categories))})"
             )
 
-        # Rule 3: Score >= 70 threshold with Obfuscation-Only Ceiling Guard
+        # Rule 3: Score >= 70 threshold with Obfuscation-Only and High-Confidence Threat Requirements
         if verdict != Verdict.MALICIOUS:
             if norm_score >= 70.0:
                 is_obfuscation_only = bool(categories_present and categories_present.issubset({"OBFUSCATION"}))
+                has_high_confidence_threat = any(
+                    f.severity in (Severity.CRITICAL, Severity.HIGH) and f.confidence >= 0.75
+                    for f in deduped
+                )
+
                 if is_obfuscation_only:
                     verdict = Verdict.SUSPICIOUS
                     verdict_reasons.append(
                         f"Obfuscation Ceiling Applied: Risk score is {norm_score}, but findings consist exclusively of obfuscation/entropy. Capped at SUSPICIOUS per safety rubric."
+                    )
+                elif not has_high_confidence_threat:
+                    # Cumulative lower-severity findings without a confirmed HIGH/CRITICAL threat are capped at SUSPICIOUS
+                    verdict = Verdict.SUSPICIOUS
+                    verdict_reasons.append(
+                        f"Threat Confidence Ceiling Applied: Risk score is {norm_score}, but findings lack a confirmed HIGH/CRITICAL threat. Capped at SUSPICIOUS."
                     )
                 else:
                     verdict = Verdict.MALICIOUS

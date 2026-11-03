@@ -1,7 +1,6 @@
 package com.pkgsentinel.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pkgsentinel.dto.ScanCallbackRequest;
 import com.pkgsentinel.dto.ScanJobResponse;
@@ -66,16 +65,18 @@ public class ScanOrchestratorService {
             throw new IllegalArgumentException("Rejected package name format: " + request.name());
         }
 
+        String targetVersion = request.versionOrDefault();
+
         // Idempotency: check if an active scan already exists for this exact coordinate
         Optional<ScanJobEntity> existingActiveJob = scanJobRepository
             .findFirstByEcosystemAndPackageNameAndVersionOrderByCreatedAtDesc(
-                request.ecosystem(), request.name(), request.version()
+                request.ecosystem(), request.name(), targetVersion
             );
 
         if (existingActiveJob.isPresent()) {
             ScanJobEntity active = existingActiveJob.get();
             if (active.getStatus() == ScanStatus.QUEUED || active.getStatus() == ScanStatus.PROCESSING) {
-                log.info("Reusing existing active scan job {} for {}@{}", active.getId(), request.name(), request.version());
+                log.info("Reusing existing active scan job {} for {}@{}", active.getId(), request.name(), targetVersion);
                 return new ScanJobResponse(
                     active.getId(),
                     active.getEcosystem().name(),
@@ -93,14 +94,14 @@ public class ScanOrchestratorService {
             .orElseGet(() -> packageRepository.save(new PackageEntity(request.ecosystem(), request.name())));
 
         PackageVersionEntity versionEntity = packageVersionRepository
-            .findByPackageEntityIdAndVersionString(pkg.getId(), request.version())
-            .orElseGet(() -> packageVersionRepository.save(new PackageVersionEntity(pkg, request.version())));
+            .findByPackageEntityIdAndVersionString(pkg.getId(), targetVersion)
+            .orElseGet(() -> packageVersionRepository.save(new PackageVersionEntity(pkg, targetVersion)));
 
         // 1. Create ScanJob record in PostgreSQL
         ScanJobEntity job = new ScanJobEntity(
             request.ecosystem(),
             request.name(),
-            request.version(),
+            targetVersion,
             request.depthOrDefault(),
             triggeredBy
         );
@@ -176,6 +177,22 @@ public class ScanOrchestratorService {
         job.setStatus(ScanStatus.COMPLETED);
         job.setCompletedAt(Instant.now());
 
+        if (callback.resolvedVersion() != null && !callback.resolvedVersion().isBlank()) {
+            String resolved = callback.resolvedVersion().trim();
+            if ("latest".equalsIgnoreCase(job.getVersion()) || job.getVersion() == null || job.getVersion().isBlank()) {
+                job.setVersion(resolved);
+                PackageEntity pkg = packageRepository
+                    .findByEcosystemAndName(job.getEcosystem(), job.getPackageName())
+                    .orElse(null);
+                if (pkg != null) {
+                    PackageVersionEntity versionEntity = packageVersionRepository
+                        .findByPackageEntityIdAndVersionString(pkg.getId(), resolved)
+                        .orElseGet(() -> packageVersionRepository.save(new PackageVersionEntity(pkg, resolved)));
+                    job.setPackageVersion(versionEntity);
+                }
+            }
+        }
+
         ScanResultEntity result = scanResultRepository.findByScanJobId(job.getId())
             .orElseGet(() -> {
                 ScanResultEntity r = new ScanResultEntity();
@@ -190,15 +207,11 @@ public class ScanOrchestratorService {
         result.setSummaryNotes(callback.summaryNotes());
         result.setAnalyzedAt(Instant.now());
 
-        try {
-            if (callback.verdictReasons() != null) {
-                result.setVerdictReasons(objectMapper.writeValueAsString(callback.verdictReasons()));
-            }
-            if (callback.analysisCoverage() != null) {
-                result.setAnalysisCoverage(objectMapper.writeValueAsString(callback.analysisCoverage()));
-            }
-        } catch (JsonProcessingException e) {
-            log.warn("Failed to serialize metadata in callback for job {}: {}", jobId, e.getMessage());
+        if (callback.verdictReasons() != null) {
+            result.setVerdictReasons(callback.verdictReasons());
+        }
+        if (callback.analysisCoverage() != null) {
+            result.setAnalysisCoverage(callback.analysisCoverage());
         }
 
         // Attach findings
@@ -268,22 +281,10 @@ public class ScanOrchestratorService {
             )).toList()
         ).orElse(Collections.emptyList());
 
-        List<String> reasons = new ArrayList<>();
-        Map<String, String> coverage = new HashMap<>();
-
-        if (resultOpt.isPresent()) {
-            ScanResultEntity res = resultOpt.get();
-            try {
-                if (res.getVerdictReasons() != null) {
-                    reasons = objectMapper.readValue(res.getVerdictReasons(), new TypeReference<List<String>>() {});
-                }
-                if (res.getAnalysisCoverage() != null) {
-                    coverage = objectMapper.readValue(res.getAnalysisCoverage(), new TypeReference<Map<String, String>>() {});
-                }
-            } catch (Exception e) {
-                // Return default empty mappings on parse issues
-            }
-        }
+        List<String> reasons = resultOpt.map(ScanResultEntity::getVerdictReasons).orElse(Collections.emptyList());
+        Map<String, String> coverage = resultOpt.map(ScanResultEntity::getAnalysisCoverage).orElse(Collections.emptyMap());
+        if (reasons == null) reasons = Collections.emptyList();
+        if (coverage == null) coverage = Collections.emptyMap();
 
         return new ScanReportResponse(
             job.getId(),

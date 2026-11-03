@@ -83,7 +83,7 @@ class DistributionType(str, Enum):
 class PackageCoordinates(BaseModel):
     ecosystem: Ecosystem
     name: str
-    version: str
+    version: Optional[str] = "latest"
 
     model_config = ConfigDict(frozen=True)
 
@@ -96,6 +96,7 @@ class ResolvedDistribution(BaseModel):
     integrity_algo: str  # sha512, sha256, sha1
     size_bytes: Optional[int] = None
     release_date: Optional[str] = None
+    resolved_version: Optional[str] = None
 
 
 class FileInventoryItem(BaseModel):

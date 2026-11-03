@@ -258,3 +258,324 @@ def test_integrity_verification_failure_cleans_up():
         # Temporary files must be cleaned up
         assert len(os.listdir(tmp_dir)) == 0
 
+
+def test_npm_version_resolution_latest_dist_tags():
+    npm_payload = {
+        "name": "express",
+        "dist-tags": {
+            "latest": "4.21.1",
+            "next": "5.0.0-beta.3"
+        },
+        "versions": {
+            "4.20.0": {
+                "dist": {
+                    "tarball": "https://registry.npmjs.org/express/-/express-4.20.0.tgz",
+                    "integrity": "sha512-4200==",
+                    "unpackedSize": 500
+                }
+            },
+            "4.21.1": {
+                "dist": {
+                    "tarball": "https://registry.npmjs.org/express/-/express-4.21.1.tgz",
+                    "integrity": "sha512-4211==",
+                    "unpackedSize": 600
+                }
+            },
+            "5.0.0-beta.3": {
+                "dist": {
+                    "tarball": "https://registry.npmjs.org/express/-/express-5.0.0-beta.3.tgz",
+                    "integrity": "sha512-5000==",
+                    "unpackedSize": 700
+                }
+            }
+        },
+        "time": {
+            "4.21.1": "2026-10-01T12:00:00.000Z"
+        }
+    }
+
+    mock_client = httpx.Client(transport=httpx.MockTransport(lambda req: httpx.Response(200, json=npm_payload)))
+    downloader = RegistryDownloader(client=mock_client, skip_dns_validation=True)
+
+    # 1. Version 'latest' (case-insensitive)
+    dist = downloader.resolve_distribution(PackageCoordinates(
+        ecosystem=Ecosystem.NPM,
+        name="express",
+        version="latest"
+    ))
+    assert dist.resolved_version == "4.21.1"
+    assert dist.filename == "express-4.21.1.tgz"
+    assert dist.download_url == "https://registry.npmjs.org/express/-/express-4.21.1.tgz"
+
+
+def test_npm_version_resolution_omitted_version():
+    npm_payload = {
+        "name": "express",
+        "dist-tags": {"latest": "4.21.1"},
+        "versions": {
+            "4.21.1": {
+                "dist": {
+                    "tarball": "https://registry.npmjs.org/express/-/express-4.21.1.tgz",
+                    "integrity": "sha512-4211==",
+                }
+            }
+        }
+    }
+
+    mock_client = httpx.Client(transport=httpx.MockTransport(lambda req: httpx.Response(200, json=npm_payload)))
+    downloader = RegistryDownloader(client=mock_client, skip_dns_validation=True)
+
+    # 2. Version omitted (None or default)
+    dist_none = downloader.resolve_distribution(PackageCoordinates(
+        ecosystem=Ecosystem.NPM,
+        name="express",
+        version=None
+    ))
+    assert dist_none.resolved_version == "4.21.1"
+
+    dist_default = downloader.resolve_distribution(PackageCoordinates(
+        ecosystem=Ecosystem.NPM,
+        name="express"
+    ))
+    assert dist_default.resolved_version == "4.21.1"
+
+
+def test_npm_version_resolution_explicit_version():
+    npm_payload = {
+        "name": "express",
+        "dist-tags": {"latest": "4.21.1"},
+        "versions": {
+            "4.18.2": {
+                "dist": {
+                    "tarball": "https://registry.npmjs.org/express/-/express-4.18.2.tgz",
+                    "integrity": "sha512-4182==",
+                }
+            },
+            "4.21.1": {
+                "dist": {
+                    "tarball": "https://registry.npmjs.org/express/-/express-4.21.1.tgz",
+                    "integrity": "sha512-4211==",
+                }
+            }
+        }
+    }
+
+    mock_client = httpx.Client(transport=httpx.MockTransport(lambda req: httpx.Response(200, json=npm_payload)))
+    downloader = RegistryDownloader(client=mock_client, skip_dns_validation=True)
+
+    # 3. Explicit version supported
+    dist = downloader.resolve_distribution(PackageCoordinates(
+        ecosystem=Ecosystem.NPM,
+        name="express",
+        version="4.18.2"
+    ))
+    assert dist.resolved_version == "4.18.2"
+    assert dist.download_url == "https://registry.npmjs.org/express/-/express-4.18.2.tgz"
+
+    # Explicit version not found raises RegistryResolutionError
+    with pytest.raises(RegistryResolutionError) as exc_info:
+        downloader.resolve_distribution(PackageCoordinates(
+            ecosystem=Ecosystem.NPM,
+            name="express",
+            version="99.99.99"
+        ))
+    assert "Version '99.99.99' not found" in str(exc_info.value)
+
+
+def test_npm_version_resolution_fallback_to_highest_stable():
+    # If dist-tags is absent or missing 'latest'
+    npm_payload = {
+        "name": "legacy-pkg",
+        "dist-tags": {},
+        "versions": {
+            "1.0.0": {
+                "dist": {
+                    "tarball": "https://registry.npmjs.org/legacy-pkg/-/legacy-pkg-1.0.0.tgz",
+                    "integrity": "sha512-100==",
+                }
+            },
+            "2.1.0": {
+                "dist": {
+                    "tarball": "https://registry.npmjs.org/legacy-pkg/-/legacy-pkg-2.1.0.tgz",
+                    "integrity": "sha512-210==",
+                }
+            },
+            "3.0.0-alpha.1": {
+                "dist": {
+                    "tarball": "https://registry.npmjs.org/legacy-pkg/-/legacy-pkg-3.0.0-alpha.1.tgz",
+                    "integrity": "sha512-300==",
+                }
+            }
+        }
+    }
+
+    mock_client = httpx.Client(transport=httpx.MockTransport(lambda req: httpx.Response(200, json=npm_payload)))
+    downloader = RegistryDownloader(client=mock_client, skip_dns_validation=True)
+
+    dist = downloader.resolve_distribution(PackageCoordinates(
+        ecosystem=Ecosystem.NPM,
+        name="legacy-pkg",
+        version="latest"
+    ))
+    # Should resolve to 2.1.0 (highest stable), ignoring 3.0.0-alpha.1
+    assert dist.resolved_version == "2.1.0"
+
+
+def test_pypi_version_resolution_latest_stable():
+    pypi_payload = {
+        "info": {
+            "name": "requests",
+            "version": "2.32.3"
+        },
+        "releases": {
+            "2.31.0": [
+                {
+                    "filename": "requests-2.31.0-py3-none-any.whl",
+                    "packagetype": "bdist_wheel",
+                    "url": "https://files.pythonhosted.org/requests-2.31.0.whl",
+                    "digests": {"sha256": "1111" * 16}
+                }
+            ],
+            "2.32.3": [
+                {
+                    "filename": "requests-2.32.3-py3-none-any.whl",
+                    "packagetype": "bdist_wheel",
+                    "url": "https://files.pythonhosted.org/requests-2.32.3.whl",
+                    "digests": {"sha256": "2222" * 16}
+                }
+            ],
+            "3.0.0b1": [
+                {
+                    "filename": "requests-3.0.0b1-py3-none-any.whl",
+                    "packagetype": "bdist_wheel",
+                    "url": "https://files.pythonhosted.org/requests-3.0.0b1.whl",
+                    "digests": {"sha256": "3333" * 16}
+                }
+            ]
+        }
+    }
+
+    mock_client = httpx.Client(transport=httpx.MockTransport(lambda req: httpx.Response(200, json=pypi_payload)))
+    downloader = RegistryDownloader(client=mock_client, skip_dns_validation=True)
+
+    dist = downloader.resolve_distribution(PackageCoordinates(
+        ecosystem=Ecosystem.PYPI,
+        name="requests",
+        version="latest"
+    ))
+    # Must resolve 2.32.3, not the prerelease 3.0.0b1
+    assert dist.resolved_version == "2.32.3"
+    assert dist.filename == "requests-2.32.3-py3-none-any.whl"
+
+
+def test_pypi_version_resolution_omitted_version():
+    pypi_payload = {
+        "info": {
+            "name": "requests",
+            "version": "2.32.3"
+        },
+        "releases": {
+            "2.32.3": [
+                {
+                    "filename": "requests-2.32.3-py3-none-any.whl",
+                    "packagetype": "bdist_wheel",
+                    "url": "https://files.pythonhosted.org/requests-2.32.3.whl",
+                    "digests": {"sha256": "2222" * 16}
+                }
+            ]
+        }
+    }
+
+    mock_client = httpx.Client(transport=httpx.MockTransport(lambda req: httpx.Response(200, json=pypi_payload)))
+    downloader = RegistryDownloader(client=mock_client, skip_dns_validation=True)
+
+    dist_none = downloader.resolve_distribution(PackageCoordinates(
+        ecosystem=Ecosystem.PYPI,
+        name="requests",
+        version=None
+    ))
+    assert dist_none.resolved_version == "2.32.3"
+
+    dist_omitted = downloader.resolve_distribution(PackageCoordinates(
+        ecosystem=Ecosystem.PYPI,
+        name="requests"
+    ))
+    assert dist_omitted.resolved_version == "2.32.3"
+
+
+def test_pypi_version_resolution_explicit_version():
+    pypi_payload = {
+        "info": {"version": "2.32.3"},
+        "releases": {
+            "2.31.0": [
+                {
+                    "filename": "requests-2.31.0-py3-none-any.whl",
+                    "packagetype": "bdist_wheel",
+                    "url": "https://files.pythonhosted.org/requests-2.31.0.whl",
+                    "digests": {"sha256": "1111" * 16}
+                }
+            ],
+            "2.32.3": [
+                {
+                    "filename": "requests-2.32.3-py3-none-any.whl",
+                    "packagetype": "bdist_wheel",
+                    "url": "https://files.pythonhosted.org/requests-2.32.3.whl",
+                    "digests": {"sha256": "2222" * 16}
+                }
+            ]
+        }
+    }
+
+    mock_client = httpx.Client(transport=httpx.MockTransport(lambda req: httpx.Response(200, json=pypi_payload)))
+    downloader = RegistryDownloader(client=mock_client, skip_dns_validation=True)
+
+    dist = downloader.resolve_distribution(PackageCoordinates(
+        ecosystem=Ecosystem.PYPI,
+        name="requests",
+        version="2.31.0"
+    ))
+    assert dist.resolved_version == "2.31.0"
+
+    with pytest.raises(RegistryResolutionError) as exc_info:
+        downloader.resolve_distribution(PackageCoordinates(
+            ecosystem=Ecosystem.PYPI,
+            name="requests",
+            version="99.99.99"
+        ))
+    assert "Version '99.99.99' not found" in str(exc_info.value)
+
+
+def test_never_lookup_literal_latest_as_exact_key():
+    # If a malicious or malformed registry response happens to have a literal key "latest" in versions
+    npm_payload = {
+        "name": "tricky-pkg",
+        "dist-tags": {"latest": "1.0.0"},
+        "versions": {
+            "latest": {
+                "dist": {
+                    "tarball": "https://registry.npmjs.org/tricky-pkg/-/tricky-pkg-evil.tgz",
+                    "integrity": "sha512-evil==",
+                }
+            },
+            "1.0.0": {
+                "dist": {
+                    "tarball": "https://registry.npmjs.org/tricky-pkg/-/tricky-pkg-1.0.0.tgz",
+                    "integrity": "sha512-good==",
+                }
+            }
+        }
+    }
+
+    mock_client = httpx.Client(transport=httpx.MockTransport(lambda req: httpx.Response(200, json=npm_payload)))
+    downloader = RegistryDownloader(client=mock_client, skip_dns_validation=True)
+
+    dist = downloader.resolve_distribution(PackageCoordinates(
+        ecosystem=Ecosystem.NPM,
+        name="tricky-pkg",
+        version="latest"
+    ))
+    # It must resolve via dist-tags to 1.0.0, NEVER picking the literal "latest" key!
+    assert dist.resolved_version == "1.0.0"
+    assert "tricky-pkg-1.0.0.tgz" in dist.filename
+
+

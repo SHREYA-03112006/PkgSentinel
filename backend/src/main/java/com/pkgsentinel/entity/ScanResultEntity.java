@@ -2,10 +2,15 @@ package com.pkgsentinel.entity;
 
 import com.pkgsentinel.entity.enums.Verdict;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Entity
@@ -38,11 +43,13 @@ public class ScanResultEntity {
     @Column(name = "summary_notes", columnDefinition = "TEXT")
     private String summaryNotes;
 
-    @Column(name = "analysis_coverage", columnDefinition = "TEXT")
-    private String analysisCoverage;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "analysis_coverage", columnDefinition = "jsonb")
+    private Map<String, String> analysisCoverage = new HashMap<>();
 
-    @Column(name = "verdict_reasons", columnDefinition = "TEXT")
-    private String verdictReasons;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "verdict_reasons", columnDefinition = "jsonb")
+    private List<String> verdictReasons = new ArrayList<>();
 
     @Column(name = "analyzed_at", nullable = false, updatable = false)
     private Instant analyzedAt = Instant.now();
@@ -73,11 +80,21 @@ public class ScanResultEntity {
     public String getSummaryNotes() { return summaryNotes; }
     public void setSummaryNotes(String summaryNotes) { this.summaryNotes = summaryNotes; }
 
-    public String getAnalysisCoverage() { return analysisCoverage; }
-    public void setAnalysisCoverage(String analysisCoverage) { this.analysisCoverage = analysisCoverage; }
+    public Map<String, String> getAnalysisCoverage() {
+        return analysisCoverage != null ? analysisCoverage : new HashMap<>();
+    }
 
-    public String getVerdictReasons() { return verdictReasons; }
-    public void setVerdictReasons(String verdictReasons) { this.verdictReasons = verdictReasons; }
+    public void setAnalysisCoverage(Map<String, String> analysisCoverage) {
+        this.analysisCoverage = analysisCoverage != null ? analysisCoverage : new HashMap<>();
+    }
+
+    public List<String> getVerdictReasons() {
+        return verdictReasons != null ? verdictReasons : new ArrayList<>();
+    }
+
+    public void setVerdictReasons(List<String> verdictReasons) {
+        this.verdictReasons = verdictReasons != null ? verdictReasons : new ArrayList<>();
+    }
 
     public Instant getAnalyzedAt() { return analyzedAt; }
     public void setAnalyzedAt(Instant analyzedAt) { this.analyzedAt = analyzedAt; }

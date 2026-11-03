@@ -50,6 +50,14 @@ class IngestionPipeline:
             # 1. Resolve official distribution metadata
             dist = self.downloader.resolve_distribution(coords)
 
+            # Ensure coordinates record the concrete resolved version
+            resolved_version = dist.resolved_version or coords.version or "latest"
+            effective_coords = PackageCoordinates(
+                ecosystem=coords.ecosystem,
+                name=coords.name,
+                version=resolved_version,
+            )
+
             # 2. Download archive & verify integrity
             archive_path = self.downloader.download_archive(dist, download_dir)
 
@@ -64,7 +72,7 @@ class IngestionPipeline:
             inventory = build_package_inventory(extracted_dir)
 
             return IngestionResult(
-                coordinates=coords,
+                coordinates=effective_coords,
                 distribution=dist,
                 archive_path=archive_path,
                 extracted_workspace=extracted_dir,

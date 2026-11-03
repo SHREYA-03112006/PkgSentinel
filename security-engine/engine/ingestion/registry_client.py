@@ -6,7 +6,7 @@ import socket
 import ipaddress
 import re
 from urllib.parse import urlparse
-from typing import Set, List
+from typing import Set, List, Optional
 from engine.ingestion.models import (
     Ecosystem,
     CoordinateValidationError,
@@ -32,18 +32,15 @@ DOC_NET2 = ipaddress.ip_network("198.51.100.0/24")
 DOC_NET3 = ipaddress.ip_network("203.0.113.0/24")
 
 
-def validate_coordinates(ecosystem: Ecosystem, name: str, version: str) -> None:
+def validate_coordinates(ecosystem: Ecosystem, name: str, version: Optional[str] = None) -> None:
     """
     Validates package name and version against ecosystem-specific strict schemas.
     Raises CoordinateValidationError if invalid.
     """
     if not name or not name.strip():
         raise CoordinateValidationError("Package name cannot be empty.")
-    if not version or not version.strip():
-        raise CoordinateValidationError("Package version cannot be empty.")
 
     clean_name = name.strip()
-    clean_version = version.strip()
 
     if ecosystem == Ecosystem.NPM:
         if not NPM_NAME_REGEX.match(clean_name):
@@ -54,8 +51,10 @@ def validate_coordinates(ecosystem: Ecosystem, name: str, version: str) -> None:
     else:
         raise CoordinateValidationError(f"Unsupported ecosystem: {ecosystem}")
 
-    if not VERSION_REGEX.match(clean_version):
-        raise CoordinateValidationError(f"Invalid version format: '{clean_version}'")
+    if version is not None and version.strip():
+        clean_version = version.strip()
+        if not VERSION_REGEX.match(clean_version):
+            raise CoordinateValidationError(f"Invalid version format: '{clean_version}'")
 
 
 def validate_ip_address(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> None:

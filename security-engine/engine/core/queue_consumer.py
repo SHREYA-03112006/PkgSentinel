@@ -149,6 +149,7 @@ class ScanJobWorker:
             callback_payload = {
                 "jobId": job_id,
                 "status": "SUCCESS",
+                "resolvedVersion": ingest_result.coordinates.version,
                 "verdict": report.verdict.value,
                 "riskScore": report.risk_score,
                 "rawScore": report.raw_score,

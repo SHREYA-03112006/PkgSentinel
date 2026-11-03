@@ -1,5 +1,5 @@
 # Stage 1: Build Java Application
-FROM eclipse-temurin:21-jdk-alpine AS builder
+FROM maven:3.9-eclipse-temurin-21-alpine AS builder
 WORKDIR /workspace/app
 
 # Copy Maven files
@@ -7,9 +7,8 @@ COPY backend/pom.xml .
 COPY backend/.mvn .mvn
 COPY backend/src src
 
-# Install maven & package artifact
-RUN apk add --no-cache maven && \
-    mvn clean package -DskipTests
+# Package artifact with unit tests
+RUN mvn clean test package
 
 # Stage 2: Runtime image
 FROM eclipse-temurin:21-jre-alpine

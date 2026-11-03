@@ -11,6 +11,7 @@ import java.util.UUID;
 public record ScanCallbackRequest(
     UUID jobId,
     String status,
+    String resolvedVersion,
     Verdict verdict,
     BigDecimal riskScore,
     BigDecimal rawScore,

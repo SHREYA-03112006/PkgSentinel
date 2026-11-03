@@ -130,3 +130,58 @@ def test_empty_findings_and_incomplete_coverage():
     assert rep_degraded.verdict == Verdict.SAFE
     assert rep_degraded.confidence_score == 0.60  # Reduced due to incomplete coverage
 
+
+def test_scoring_diminishing_returns_on_repeat_rule_findings():
+    scorer = RiskScoringEngine()
+    # 5 findings with identical rule_id across different files
+    findings = [
+        SecurityFinding(
+            module="AST", rule_id="PY_DYNAMIC_EXECUTION", category=FindingCategory.STATIC_CODE,
+            severity=Severity.LOW, confidence=0.40, title=f"Exec {i}", description="Exec",
+            affected_file=f"module_{i}.py"
+        )
+        for i in range(5)
+    ]
+    # W=3.0, conf=0.40
+    # 1st: 3.0 * 1.0 * 0.40 = 1.20
+    # 2nd: 3.0 * 0.35 * 0.40 = 0.42
+    # 3rd: 3.0 * 0.15 * 0.40 = 0.18
+    # 4th: 3.0 * 0.05 * 0.40 = 0.06
+    # 5th: 3.0 * 0.05 * 0.40 = 0.06
+    # Expected S_raw = 1.20 + 0.42 + 0.18 + 0.06 + 0.06 = 1.92
+    rep = scorer.compute_verdict("job-diminish", findings, {"AST": "COMPLETED"})
+    assert rep.raw_score == pytest.approx(1.92, 0.05)
+    assert rep.risk_score < 10.0
+    assert rep.verdict == Verdict.SAFE
+
+
+def test_benign_framework_flask_benchmark_verdict():
+    scorer = RiskScoringEngine()
+    # Simulating the exact findings produced by Flask 3.1.3 after context-aware analysis:
+    # 1. flask/config.py: exec in from_pyfile -> PY_DYNAMIC_EXECUTION, LOW, 0.40
+    # 2. flask/cli.py: eval in shell_command -> PY_DYNAMIC_EXECUTION, LOW, 0.40
+    # 3. flask/helpers.py: __import__ in find_package -> PY_DYNAMIC_IMPORT, LOW, 0.35
+    # (RECORD file in .dist-info is excluded by entropy analyzer)
+    flask_findings = [
+        SecurityFinding(
+            module="PYTHON_AST_ANALYZER", rule_id="PY_DYNAMIC_EXECUTION",
+            category=FindingCategory.STATIC_CODE, severity=Severity.LOW, confidence=0.40,
+            title="Dynamic Execution via exec()", description="flask/config.py", affected_file="flask/config.py"
+        ),
+        SecurityFinding(
+            module="PYTHON_AST_ANALYZER", rule_id="PY_DYNAMIC_EXECUTION",
+            category=FindingCategory.STATIC_CODE, severity=Severity.LOW, confidence=0.40,
+            title="Dynamic Execution via eval()", description="flask/cli.py", affected_file="flask/cli.py"
+        ),
+        SecurityFinding(
+            module="PYTHON_AST_ANALYZER", rule_id="PY_DYNAMIC_IMPORT",
+            category=FindingCategory.STATIC_CODE, severity=Severity.LOW, confidence=0.35,
+            title="Dynamic Module Import", description="flask/helpers.py", affected_file="flask/helpers.py"
+        ),
+    ]
+    rep = scorer.compute_verdict("flask-benchmark", flask_findings, {"STATIC_CODE": "COMPLETED"})
+    # Risk score must be comfortably below SUSPICIOUS threshold (30.0)
+    assert rep.risk_score < 15.0
+    assert rep.verdict == Verdict.SAFE
+
+
