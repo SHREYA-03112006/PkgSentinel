@@ -20,3 +20,4 @@ class AnalysisVerdictReport(BaseModel):
     execution_duration_ms: int
     findings: List[SecurityFinding] = Field(default_factory=list)
     telemetry: Optional[Dict[str, Any]] = None
+

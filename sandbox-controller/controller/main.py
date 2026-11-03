@@ -14,3 +14,4 @@ def health_check():
         "service": "pkgsentinel-sandbox-controller",
         "phase": "Phase 2 Target"
     }
+

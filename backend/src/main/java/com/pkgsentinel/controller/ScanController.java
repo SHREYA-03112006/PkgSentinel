@@ -38,3 +38,4 @@ public class ScanController {
             .orElseGet(() -> ResponseEntity.notFound().build());
     }
 }
+

@@ -13,3 +13,4 @@ public record ScanJobResponse(
     String pollUrl,
     Instant createdAt
 ) {}
+

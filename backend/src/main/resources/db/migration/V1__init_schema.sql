@@ -105,3 +105,4 @@ CREATE TABLE IF NOT EXISTS threat_indicators (
 );
 
 CREATE INDEX IF NOT EXISTS idx_threat_indicators_val ON threat_indicators (indicator_type, indicator_value);
+

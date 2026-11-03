@@ -47,3 +47,4 @@ def test_verdict_report_validation():
     assert report.verdict == Verdict.SUSPICIOUS
     assert len(report.findings) == 1
     assert report.findings[0].severity == Severity.HIGH
+

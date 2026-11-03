@@ -12,3 +12,4 @@ public class PkgSentinelApplication {
         SpringApplication.run(PkgSentinelApplication.class, args);
     }
 }
+

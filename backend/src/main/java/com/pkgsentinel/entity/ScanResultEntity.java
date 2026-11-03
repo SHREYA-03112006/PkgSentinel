@@ -67,3 +67,4 @@ public class ScanResultEntity {
     public List<ModuleFindingEntity> getFindings() { return findings; }
     public void setFindings(List<ModuleFindingEntity> findings) { this.findings = findings; }
 }
+

@@ -17,3 +17,4 @@ dependencies = [
     "pydantic>=2.8.0",
     "pydantic-settings>=2.4.0"
 ]
+

@@ -11,3 +11,4 @@ import java.util.UUID;
 public interface ScanResultRepository extends JpaRepository<ScanResultEntity, UUID> {
     Optional<ScanResultEntity> findByScanJobId(UUID scanJobId);
 }
+

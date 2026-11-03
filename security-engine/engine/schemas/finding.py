@@ -31,3 +31,4 @@ class SecurityFinding(BaseModel):
     line_number: Optional[int] = None
     code_snippet: Optional[str] = None
     telemetry: Optional[Dict[str, Any]] = None
+

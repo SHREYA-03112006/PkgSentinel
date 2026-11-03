@@ -20,3 +20,4 @@ public interface ScanJobRepository extends JpaRepository<ScanJobEntity, UUID> {
     List<ScanJobEntity> findByStatus(ScanStatus status);
     Page<ScanJobEntity> findAllByOrderByCreatedAtDesc(Pageable pageable);
 }
+

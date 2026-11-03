@@ -12,3 +12,4 @@ import java.util.UUID;
 public interface PackageRepository extends JpaRepository<PackageEntity, UUID> {
     Optional<PackageEntity> findByEcosystemAndName(Ecosystem ecosystem, String name);
 }
+

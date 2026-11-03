@@ -9,3 +9,4 @@ In accordance with Architecture v2.1:
 - Egress is strictly routed to the Sinkhole Gateway with no external WAN routing.
 
 *Scheduled for full implementation in Phase 2.*
+

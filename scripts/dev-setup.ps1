@@ -19,3 +19,4 @@ npm.cmd install
 Set-Location ..
 
 Write-Host "[✓] Setup complete! You can start services via Docker Compose or locally." -ForegroundColor Green
+

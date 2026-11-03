@@ -57,3 +57,4 @@ public class PackageEntity {
     public Instant getLastAnalyzedAt() { return lastAnalyzedAt; }
     public void setLastAnalyzedAt(Instant lastAnalyzedAt) { this.lastAnalyzedAt = lastAnalyzedAt; }
 }
+

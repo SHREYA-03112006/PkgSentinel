@@ -6,3 +6,4 @@ public enum ScanStatus {
     COMPLETED,
     FAILED
 }
+

@@ -10,3 +10,4 @@ public record HealthResponse(
     Instant timestamp,
     Map<String, String> components
 ) {}
+

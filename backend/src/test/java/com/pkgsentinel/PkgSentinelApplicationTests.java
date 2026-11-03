@@ -36,3 +36,4 @@ class PkgSentinelApplicationTests {
         assertEquals("https://pypi.org/pypi/fastapi/json", pypiUri.toString());
     }
 }
+

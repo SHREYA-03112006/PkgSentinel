@@ -23,3 +23,4 @@ public record ScanRequest(
         return depth != null ? depth : ScanDepth.FAST;
     }
 }
+

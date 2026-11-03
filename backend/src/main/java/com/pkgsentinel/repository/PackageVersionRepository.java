@@ -12,3 +12,4 @@ public interface PackageVersionRepository extends JpaRepository<PackageVersionEn
     Optional<PackageVersionEntity> findByPackageEntityIdAndVersionString(UUID packageId, String versionString);
     Optional<PackageVersionEntity> findBySha256Hash(String sha256Hash);
 }
+

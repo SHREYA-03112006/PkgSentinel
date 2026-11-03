@@ -15,3 +15,4 @@ This document summarizes the approved baseline architecture for PkgSentinel, imp
 2. **Safe Decoupled Sandbox**: Python workers have no Docker socket access.
 3. **Decoupled Scoring & Verdicts**: Continuous numerical risk score ($0.0 - 100.0$) and categorical verdicts (`SAFE`, `SUSPICIOUS`, `MALICIOUS`) with explicit override rules for verified critical exploits.
 4. **Defense-in-Depth SSRF Protection**: Spring Boot Layer 1 identifier validation & URL construction; Python Worker Layer 2 IP-pinning, private range rejection, and checksum verification.
+

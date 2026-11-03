@@ -55,3 +55,4 @@ logging:
     root: INFO
     com.pkgsentinel: ${LOG_LEVEL:DEBUG}
     org.flywaydb: INFO
+

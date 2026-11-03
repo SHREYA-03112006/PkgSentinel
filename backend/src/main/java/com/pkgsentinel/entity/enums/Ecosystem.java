@@ -4,3 +4,4 @@ public enum Ecosystem {
     NPM,
     PYPI
 }
+

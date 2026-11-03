@@ -33,3 +33,4 @@ echo "    - Run infrastructure: docker compose up -d postgres redis"
 echo "    - Run backend: cd backend && ./mvnw spring-boot:run"
 echo "    - Run engine: cd security-engine && uvicorn engine.main:app --reload"
 echo "    - Run frontend: cd frontend && npm run dev"
+

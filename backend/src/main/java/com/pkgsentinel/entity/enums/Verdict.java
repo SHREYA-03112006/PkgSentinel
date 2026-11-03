@@ -5,3 +5,4 @@ public enum Verdict {
     SUSPICIOUS,
     MALICIOUS
 }
+
