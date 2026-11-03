@@ -6,16 +6,35 @@ import Scanner from './components/Scanner';
 import ScanResult from './components/ScanResult';
 import ScanHistory from './components/ScanHistory';
 import About from './components/About';
+import AuthModal from './components/AuthModal';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { getScanById } from './services/scanService';
 import { UIScanResult } from './types/report';
 import { Shield } from 'lucide-react';
 
-export const App: React.FC = () => {
+const MainLayout: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'about'>('dashboard');
   const [currentScanResult, setCurrentScanResult] = useState<UIScanResult | null>(null);
   const [selectedPreset, setSelectedPreset] = useState<{ name: string; ecosystem?: string } | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  const { authModalOpen, authModalMode, closeAuthModal, openAuthModal } = useAuth();
+
+  // Check URL parameters on mount
+  useEffect(() => {
+    const authParam = searchParams.get('auth');
+    if (authParam === 'signin' || authParam === 'login') {
+      openAuthModal('signin');
+    } else if (authParam === 'signup' || authParam === 'register') {
+      openAuthModal('signup');
+    }
+
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'history' || tabParam === 'about') {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams, openAuthModal]);
 
   // Deep-link support for ?jobId=...
   useEffect(() => {
@@ -115,6 +134,13 @@ export const App: React.FC = () => {
         )}
       </main>
 
+      {/* Global Authentication Modal */}
+      <AuthModal
+        isOpen={authModalOpen}
+        onClose={closeAuthModal}
+        initialMode={authModalMode}
+      />
+
       {/* Clean Footer */}
       <footer className="border-t border-slate-200/80 bg-white/70 backdrop-blur-sm py-8 mt-12 select-none">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
@@ -137,6 +163,14 @@ export const App: React.FC = () => {
       </footer>
 
     </div>
+  );
+};
+
+export const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <MainLayout />
+    </AuthProvider>
   );
 };
 

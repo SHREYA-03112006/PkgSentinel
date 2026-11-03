@@ -182,3 +182,54 @@ test('mapBackendReportToUI transforms Spring Boot report to UI model', () => {
   assert.strictEqual(uiResult.metadata.installScriptDetected, true);
   assert.strictEqual(uiResult.verdictReasons.length, 2);
 });
+
+// Authentication and UX validation tests
+function calculatePasswordStrength(pwd) {
+  let score = 0;
+  if (pwd.length >= 8) score += 1;
+  if (pwd.length >= 12) score += 1;
+  if (/[A-Z]/.test(pwd)) score += 1;
+  if (/[0-9]/.test(pwd)) score += 1;
+  if (/[^A-Za-z0-9]/.test(pwd)) score += 1;
+
+  if (score === 0 || pwd.length < 8) return { score, label: 'Too Short (min 8)' };
+  if (score <= 2) return { score, label: 'Weak' };
+  if (score <= 4) return { score, label: 'Good' };
+  return { score, label: 'Strong' };
+}
+
+function validateRegisterPayload(payload) {
+  const errors = [];
+  if (!payload.fullName?.trim()) errors.push('Full name is required.');
+  if (!payload.username?.trim() || payload.username.trim().length < 3) errors.push('Username must be at least 3 characters.');
+  if (!/^[a-zA-Z0-9._-]+$/.test(payload.username || '')) errors.push('Invalid username characters.');
+  if (!payload.email?.trim() || !/^\S+@\S+\.\S+$/.test(payload.email.trim())) errors.push('Invalid email address.');
+  if (!payload.password || payload.password.length < 8) errors.push('Password must be at least 8 characters long.');
+  return errors;
+}
+
+test('calculatePasswordStrength evaluates length and character sets', () => {
+  assert.strictEqual(calculatePasswordStrength('abc').label, 'Too Short (min 8)');
+  assert.strictEqual(calculatePasswordStrength('password123').label, 'Weak');
+  assert.strictEqual(calculatePasswordStrength('Pass1234!').label, 'Good');
+  assert.strictEqual(calculatePasswordStrength('SuperSecurePass123!@#').label, 'Strong');
+});
+
+test('validateRegisterPayload checks required fields and formats', () => {
+  const invalid = validateRegisterPayload({
+    fullName: '',
+    username: 'u',
+    email: 'not-an-email',
+    password: 'short'
+  });
+  assert.strictEqual(invalid.length, 4);
+
+  const valid = validateRegisterPayload({
+    fullName: 'Security Engineer',
+    username: 'sec_admin',
+    email: 'admin@pkgsentinel.io',
+    password: 'SecurePassword2026!'
+  });
+  assert.strictEqual(valid.length, 0);
+});
+

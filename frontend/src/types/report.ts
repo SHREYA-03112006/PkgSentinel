@@ -108,3 +108,4 @@ export function mapBackendReportToUI(r: BackendScanReport): UIScanResult {
     failureReason: r.failureReason || undefined
   };
 }
+

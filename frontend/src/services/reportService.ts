@@ -9,3 +9,4 @@ export async function getScanReport(jobId: string): Promise<UIScanResult> {
   const backendReport = await getBackendScanReport(jobId);
   return mapBackendReportToUI(backendReport);
 }
+

@@ -116,3 +116,4 @@ export async function getScanById(id: string): Promise<UIScanResult | null> {
     return null;
   }
 }
+

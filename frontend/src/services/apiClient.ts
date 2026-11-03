@@ -28,6 +28,18 @@ export async function request<T>(endpoint: string, options: RequestInit = {}): P
     headers.set('Content-Type', 'application/json');
   }
 
+  // Inject Bearer token if present and not explicitly provided
+  if (!headers.has('Authorization')) {
+    try {
+      const token = localStorage.getItem('pkgsentinel_auth_token');
+      if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
+      }
+    } catch {
+      // Storage access may be restricted
+    }
+  }
+
   const config: RequestInit = {
     ...options,
     headers,
@@ -50,3 +62,4 @@ export async function request<T>(endpoint: string, options: RequestInit = {}): P
 
   return response.json() as Promise<T>;
 }
+

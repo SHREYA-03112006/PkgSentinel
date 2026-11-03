@@ -69,3 +69,4 @@ analysisCoverage             <--->  coverage tags (AST, Metadata, Typosquatting,
    - `ScanHistory.tsx`: Live audit log, search, ecosystem and verdict filters, report inspection.
    - `About.tsx`: Explains the 5 Zero-Day heuristic detection pillars and architectural pipeline.
 5. **Build & Test Verification**: Verify TypeScript, Vite production build, and unit/integration tests.
+

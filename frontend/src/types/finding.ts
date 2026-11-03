@@ -57,3 +57,4 @@ export function mapBackendFindingToUI(f: BackendFindingItem): UIFinding {
     ruleId: f.ruleId
   };
 }
+

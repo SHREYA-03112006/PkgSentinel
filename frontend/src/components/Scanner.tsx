@@ -244,3 +244,4 @@ export const Scanner: React.FC<ScannerProps> = ({ onScanComplete, selectedPreset
 };
 
 export default Scanner;
+

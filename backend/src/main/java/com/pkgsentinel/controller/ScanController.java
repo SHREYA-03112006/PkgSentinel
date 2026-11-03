@@ -18,17 +18,32 @@ import java.util.UUID;
 public class ScanController {
 
     private final ScanOrchestratorService scanOrchestratorService;
+    private final com.pkgsentinel.service.AuthService authService;
 
-    public ScanController(ScanOrchestratorService scanOrchestratorService) {
+    public ScanController(
+        ScanOrchestratorService scanOrchestratorService,
+        com.pkgsentinel.service.AuthService authService
+    ) {
         this.scanOrchestratorService = scanOrchestratorService;
+        this.authService = authService;
     }
 
     @PostMapping
     public ResponseEntity<ScanJobResponse> triggerScan(
         @Valid @RequestBody ScanRequest request,
-        @RequestHeader(value = "X-Triggered-By", defaultValue = "WEB") String triggeredBy
+        @RequestHeader(value = "X-Triggered-By", defaultValue = "WEB") String triggeredBy,
+        @RequestHeader(value = "Authorization", required = false) String authHeader
     ) {
-        ScanJobResponse response = scanOrchestratorService.submitScan(request, triggeredBy);
+        String actor = triggeredBy;
+        if (authHeader != null && !authHeader.isBlank()) {
+            try {
+                com.pkgsentinel.dto.UserSummary user = authService.getCurrentUser(authHeader);
+                actor = "USER:" + user.username();
+            } catch (Exception ignored) {
+                // Fall back to triggeredBy if token invalid
+            }
+        }
+        ScanJobResponse response = scanOrchestratorService.submitScan(request, actor);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
     }
 

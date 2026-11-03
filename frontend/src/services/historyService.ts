@@ -42,3 +42,4 @@ export async function getScanHistory(page: number = 0, size: number = 50): Promi
     return { items: [], total: 0 };
   }
 }
+

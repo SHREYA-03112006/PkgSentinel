@@ -46,6 +46,9 @@ export const About: React.FC = () => {
   ];
 
   const apis = [
+    { method: 'POST', endpoint: '/api/v1/auth/register', desc: 'Secure user registration with PBKDF2 HMAC-SHA256 password hashing.' },
+    { method: 'POST', endpoint: '/api/v1/auth/login', desc: 'User login returning high-entropy session bearer token.' },
+    { method: 'GET', endpoint: '/api/v1/auth/me', desc: 'Retrieve authenticated user session profile and role.' },
     { method: 'POST', endpoint: '/api/v1/scans', desc: 'Submit a package name, ecosystem, and version for asynchronous zero-day inspection.' },
     { method: 'GET', endpoint: '/api/v1/scans/{jobId}', desc: 'Retrieve real-time scan job status (QUEUED, PROCESSING, COMPLETED, FAILED) and full report.' },
     { method: 'GET', endpoint: '/api/v1/scans', desc: 'Query paginated forensic scan audit history with verdicts and risk scores.' },

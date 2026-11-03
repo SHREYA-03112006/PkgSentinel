@@ -14,3 +14,4 @@ export function mapBackendVerdictToUI(verdict?: BackendVerdict | null, riskScore
   }
   return { decision: 'ALLOW', classification: 'LOW' };
 }
+

@@ -197,3 +197,4 @@ export const Hero: React.FC<HeroProps> = ({ onSelectPreset }) => {
 };
 
 export default Hero;
+
