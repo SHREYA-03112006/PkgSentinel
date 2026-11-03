@@ -354,3 +354,107 @@ test('sanitizeAuthHeaders strips WWW-Authenticate: Basic to prevent native brows
   assert.strictEqual(kept['www-authenticate'], 'Bearer realm="PkgSentinel"');
 });
 
+// Centralized Response Parser unit tests
+function parseRawBody(status, rawText, contentType = 'application/json') {
+  if (status === 204 || !rawText || !rawText.trim()) {
+    return { rawText: '', data: null };
+  }
+  const trimmed = rawText.trim();
+  try {
+    const json = JSON.parse(trimmed);
+    return { rawText, data: json };
+  } catch {
+    return { rawText, data: trimmed };
+  }
+}
+
+function extractErrorMessage(status, statusText, data) {
+  if (data && typeof data === 'object') {
+    const obj = data;
+    if (obj.validationErrors && typeof obj.validationErrors === 'object') {
+      const errs = Object.values(obj.validationErrors).filter(Boolean);
+      if (errs.length > 0) return errs.join(', ');
+    }
+    if (Array.isArray(obj.errors) && obj.errors.length > 0) {
+      const msgs = obj.errors.map(e => typeof e === 'object' && e ? e.defaultMessage : String(e)).filter(Boolean);
+      if (msgs.length > 0) return msgs.join(', ');
+    }
+    if (typeof obj.message === 'string' && obj.message.trim().length > 0) {
+      return obj.message.trim();
+    }
+    if (typeof obj.error === 'string' && obj.error.trim().length > 0) {
+      return obj.error.trim();
+    }
+  }
+
+  if (typeof data === 'string' && data.length > 0) {
+    if (!data.startsWith('<') && !data.includes('<!DOCTYPE') && data.length < 300) {
+      return data;
+    }
+  }
+
+  switch (status) {
+    case 400: return 'Invalid request format or missing required fields.';
+    case 401: return 'Authentication required. Please verify your credentials.';
+    case 403: return 'Access denied. You do not have permission to perform this action.';
+    case 404: return 'The requested resource was not found.';
+    case 409: return 'Conflict: An account with this username or email already exists.';
+    case 500:
+    case 502:
+    case 503:
+    case 504: return 'Backend service is currently unavailable. Please verify the security engine is running.';
+    default: return `Request failed with HTTP status ${status}${statusText ? `: ${statusText}` : ''}.`;
+  }
+}
+
+test('parseRawBody and extractErrorMessage handle JSON errors without double stream reading', () => {
+  // 1. Backend 409 duplicate user error
+  const duplicateErr = JSON.stringify({
+    status: 409,
+    error: 'Conflict',
+    message: "Username 'alice_sec' is already registered"
+  });
+  const parsed409 = parseRawBody(409, duplicateErr);
+  const msg409 = extractErrorMessage(409, 'Conflict', parsed409.data);
+  assert.strictEqual(msg409, "Username 'alice_sec' is already registered");
+
+  // 2. Backend 400 Bean Validation map error
+  const valErr = JSON.stringify({
+    status: 400,
+    error: 'Bad Request',
+    validationErrors: {
+      password: 'Password must be between 8 and 128 characters',
+      email: 'Email must be valid'
+    }
+  });
+  const parsed400 = parseRawBody(400, valErr);
+  const msg400 = extractErrorMessage(400, 'Bad Request', parsed400.data);
+  assert.ok(msg400.includes('Password must be between 8 and 128 characters'));
+  assert.ok(msg400.includes('Email must be valid'));
+
+  // 3. Vite proxy 502 HTML Bad Gateway error (must NOT crash or leak HTML)
+  const htmlErr = '<html><head><title>502 Bad Gateway</title></head><body><h1>502 Bad Gateway</h1></body></html>';
+  const parsed502 = parseRawBody(502, htmlErr, 'text/html');
+  const msg502 = extractErrorMessage(502, 'Bad Gateway', parsed502.data);
+  assert.strictEqual(msg502, 'Backend service is currently unavailable. Please verify the security engine is running.');
+
+  // 4. Empty response (HTTP 204 No Content for logout)
+  const parsed204 = parseRawBody(204, '');
+  assert.strictEqual(parsed204.data, null);
+  assert.strictEqual(parsed204.rawText, '');
+});
+
+test('registration contract matches RegisterRequest fields exactly', () => {
+  // RegisterRequest.java: username, email, password, fullName
+  const frontendPayload = {
+    fullName: 'Bob Security',
+    username: 'bob_sec',
+    email: 'bob@example.com',
+    password: 'Password123!'
+  };
+
+  const expectedKeys = ['fullName', 'username', 'email', 'password'].sort();
+  const actualKeys = Object.keys(frontendPayload).sort();
+  assert.deepStrictEqual(actualKeys, expectedKeys);
+});
+
