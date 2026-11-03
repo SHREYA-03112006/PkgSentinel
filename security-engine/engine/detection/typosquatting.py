@@ -213,3 +213,4 @@ class TyposquattingDetector:
                     ))
 
         return findings
+

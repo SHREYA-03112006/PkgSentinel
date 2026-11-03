@@ -174,3 +174,4 @@ class PythonASTAnalyzer:
         visitor = PythonASTVisitor(rel_path)
         visitor.visit(tree)
         return visitor.findings
+

@@ -129,3 +129,4 @@ def test_empty_findings_and_incomplete_coverage():
     rep_degraded = scorer.compute_verdict("job-fail", [], {"AST": "FAILED: SyntaxError", "META": "COMPLETED"})
     assert rep_degraded.verdict == Verdict.SAFE
     assert rep_degraded.confidence_score == 0.60  # Reduced due to incomplete coverage
+

@@ -5,6 +5,7 @@ import com.pkgsentinel.dto.ScanReportResponse;
 import com.pkgsentinel.dto.ScanRequest;
 import com.pkgsentinel.service.ScanOrchestratorService;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -37,5 +38,20 @@ public class ScanController {
             .map(ResponseEntity::ok)
             .orElseGet(() -> ResponseEntity.notFound().build());
     }
-}
 
+    @GetMapping("/{jobId}/report")
+    public ResponseEntity<ScanReportResponse> getDedicatedReport(@PathVariable UUID jobId) {
+        return scanOrchestratorService.getScanReport(jobId)
+            .map(ResponseEntity::ok)
+            .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @GetMapping
+    public ResponseEntity<Page<ScanReportResponse>> getRecentScans(
+        @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "10") int size
+    ) {
+        Page<ScanReportResponse> recent = scanOrchestratorService.getRecentScans(page, size);
+        return ResponseEntity.ok(recent);
+    }
+}

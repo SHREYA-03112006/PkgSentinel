@@ -29,11 +29,20 @@ public class ScanResultEntity {
     @Column(name = "risk_score", nullable = false, precision = 5, scale = 2)
     private BigDecimal riskScore;
 
+    @Column(name = "raw_score", precision = 5, scale = 2)
+    private BigDecimal rawScore = BigDecimal.ZERO;
+
     @Column(name = "confidence_score", nullable = false, precision = 4, scale = 3)
     private BigDecimal confidenceScore;
 
     @Column(name = "summary_notes", columnDefinition = "TEXT")
     private String summaryNotes;
+
+    @Column(name = "analysis_coverage", columnDefinition = "TEXT")
+    private String analysisCoverage;
+
+    @Column(name = "verdict_reasons", columnDefinition = "TEXT")
+    private String verdictReasons;
 
     @Column(name = "analyzed_at", nullable = false, updatable = false)
     private Instant analyzedAt = Instant.now();
@@ -55,11 +64,20 @@ public class ScanResultEntity {
     public BigDecimal getRiskScore() { return riskScore; }
     public void setRiskScore(BigDecimal riskScore) { this.riskScore = riskScore; }
 
+    public BigDecimal getRawScore() { return rawScore; }
+    public void setRawScore(BigDecimal rawScore) { this.rawScore = rawScore; }
+
     public BigDecimal getConfidenceScore() { return confidenceScore; }
     public void setConfidenceScore(BigDecimal confidenceScore) { this.confidenceScore = confidenceScore; }
 
     public String getSummaryNotes() { return summaryNotes; }
     public void setSummaryNotes(String summaryNotes) { this.summaryNotes = summaryNotes; }
+
+    public String getAnalysisCoverage() { return analysisCoverage; }
+    public void setAnalysisCoverage(String analysisCoverage) { this.analysisCoverage = analysisCoverage; }
+
+    public String getVerdictReasons() { return verdictReasons; }
+    public void setVerdictReasons(String verdictReasons) { this.verdictReasons = verdictReasons; }
 
     public Instant getAnalyzedAt() { return analyzedAt; }
     public void setAnalyzedAt(Instant analyzedAt) { this.analyzedAt = analyzedAt; }
@@ -67,4 +85,3 @@ public class ScanResultEntity {
     public List<ModuleFindingEntity> getFindings() { return findings; }
     public void setFindings(List<ModuleFindingEntity> findings) { this.findings = findings; }
 }
-

@@ -87,3 +87,4 @@ class EntropyAnalyzer:
             ))
 
         return findings
+

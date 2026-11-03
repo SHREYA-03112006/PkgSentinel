@@ -41,6 +41,11 @@ spring:
       password: ${REDIS_PASSWORD:}
       timeout: 3000ms
 
+pkgsentinel:
+  internal-token: ${INTERNAL_AUTH_SECRET:sentinel-internal-secure-token-2026}
+  outbox:
+    poll-interval-ms: 2000
+
 management:
   endpoints:
     web:
@@ -55,4 +60,3 @@ logging:
     root: INFO
     com.pkgsentinel: ${LOG_LEVEL:DEBUG}
     org.flywaydb: INFO
-

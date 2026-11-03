@@ -177,3 +177,4 @@ class DetectionPipeline:
                 rel_path = os.path.relpath(abs_path, workspace).replace("\\", "/")
                 findings.extend(self.entropy_analyzer.analyze_file(abs_path, rel_path))
         return findings
+

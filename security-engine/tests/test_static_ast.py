@@ -173,3 +173,4 @@ def test_entropy_analyzer_detects_high_entropy_file():
         assert len(findings) == 1
         assert findings[0].rule_id == "OBFUSCATION_HIGH_ENTROPY_FILE"
         assert findings[0].severity == Severity.MEDIUM
+

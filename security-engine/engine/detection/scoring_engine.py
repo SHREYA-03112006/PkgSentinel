@@ -148,3 +148,4 @@ class RiskScoringEngine:
             analysis_coverage=analysis_coverage,
             findings=deduped,
         )
+

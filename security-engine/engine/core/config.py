@@ -14,8 +14,12 @@ class EngineSettings(BaseSettings):
     redis_port: int = 6379
     redis_password: str = ""
     scan_stream_key: str = "stream:scan-jobs"
+    dlq_stream_key: str = "stream:scan-jobs:dlq"
     consumer_group: str = "engine-workers"
     consumer_name: str = "worker-1"
+
+    # Internal Authentication Shared Token
+    internal_auth_secret: str = "sentinel-internal-secure-token-2026"
 
     # Backend Orchestrator Callback URL
     backend_callback_url: str = "http://localhost:8080/internal/v1/scans"
@@ -31,4 +35,3 @@ class EngineSettings(BaseSettings):
 
 
 settings = EngineSettings()
-

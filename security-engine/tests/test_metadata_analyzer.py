@@ -76,3 +76,4 @@ def test_empty_metadata_produces_no_findings():
     coords = PackageCoordinates(ecosystem=Ecosystem.PYPI, name="clean-lib", version="1.0.0")
     findings = analyzer.analyze(coords, registry_metadata=None, manifest_data=None)
     assert findings == []
+
