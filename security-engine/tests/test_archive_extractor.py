@@ -286,3 +286,4 @@ def test_corrupted_archive_rejected():
         out_dir = os.path.join(tmp_dir, "out")
         with pytest.raises(ArchiveExtractionError):
             extractor.extract(corrupted_path, out_dir)
+

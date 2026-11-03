@@ -126,3 +126,4 @@ class IngestionResult(BaseModel):
     archive_size_bytes: int
     inventory: PackageInventory
     ingested_at: str
+

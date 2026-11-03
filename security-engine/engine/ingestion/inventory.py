@@ -179,3 +179,4 @@ def build_package_inventory(workspace_dir: str) -> PackageInventory:
         suspicious_files=suspicious_files,
         files=items,
     )
+

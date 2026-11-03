@@ -258,3 +258,4 @@ class RegistryDownloader:
                 except OSError:
                     pass
             raise
+

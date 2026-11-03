@@ -257,3 +257,4 @@ def test_integrity_verification_failure_cleans_up():
 
         # Temporary files must be cleaned up
         assert len(os.listdir(tmp_dir)) == 0
+

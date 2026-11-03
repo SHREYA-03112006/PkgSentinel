@@ -111,3 +111,4 @@ python -m pytest -v
 
 1. **Dynamic Sandboxing**: Phase 1B covers safe static archive ingestion and file inventory. Execution of package installation scripts is intentionally deferred to Phase 2 (Sandbox Controller & Canary).
 2. **Large Package Quotas**: Legitimate machine learning libraries (e.g. `torch`, `tensorflow`) exceed 150 MB and will be rejected by default limits. Tiered whitelist quotas will be configured in future enterprise policies.
+

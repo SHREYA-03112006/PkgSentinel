@@ -258,3 +258,4 @@ class SecureArchiveExtractor:
 
         except (zipfile.BadZipFile, EOFError) as e:
             raise ArchiveExtractionError(f"Corrupted or invalid zip archive: {e}")
+

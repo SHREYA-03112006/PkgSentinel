@@ -97,3 +97,4 @@ def verify_file_integrity(file_path: str, expected_integrity: str, expected_algo
         )
 
     return True
+

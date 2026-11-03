@@ -102,3 +102,4 @@ def test_package_inventory_deterministic_and_accurate():
         json_item = [x for x in inventory.files if x.relative_path == "package.json"][0]
         assert json_item.sha256 == expected_json_sha256
         assert not json_item.is_binary
+

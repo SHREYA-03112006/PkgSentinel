@@ -88,3 +88,4 @@ class IngestionPipeline:
         session_root = os.path.dirname(result.extracted_workspace)
         if os.path.exists(session_root):
             shutil.rmtree(session_root, ignore_errors=True)
+

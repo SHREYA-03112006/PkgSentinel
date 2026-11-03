@@ -13,6 +13,8 @@ from engine.ingestion.models import (
     IngestionError,
 )
 from engine.ingestion.pipeline import IngestionPipeline
+from engine.schemas.verdict import AnalysisVerdictReport
+from engine.detection.pipeline import DetectionPipeline
 
 app = FastAPI(
     title="PkgSentinel Security Engine",
@@ -20,7 +22,8 @@ app = FastAPI(
     version="0.1.0"
 )
 
-pipeline = IngestionPipeline()
+ingestion_pipeline = IngestionPipeline()
+detection_pipeline = DetectionPipeline()
 
 
 @app.get("/health", tags=["Health"])
@@ -53,16 +56,10 @@ def system_status():
 )
 def ingest_package_endpoint(coords: PackageCoordinates):
     """
-    Ingests an npm or PyPI package:
-    - Validates package coordinates against strict naming rules.
-    - Resolves official metadata from allowlisted registries.
-    - Streams download with size quotas and anti-SSRF protections.
-    - Verifies cryptographic integrity (SRI / SHA-256).
-    - Safely extracts with TarSlip, ZipBomb, and symlink protection.
-    - Generates a deterministic file inventory.
+    Ingests an npm or PyPI package safely without code execution.
     """
     try:
-        result = pipeline.ingest_package(coords)
+        result = ingestion_pipeline.ingest_package(coords)
         return result
     except (CoordinateValidationError, SSRFSecurityError) as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -72,3 +69,41 @@ def ingest_package_endpoint(coords: PackageCoordinates):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
     except IngestionError as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@app.post(
+    "/api/v1/analyze",
+    response_model=AnalysisVerdictReport,
+    tags=["Detection"],
+    summary="Execute full static security detection and explainable risk scoring on a package"
+)
+def analyze_package_endpoint(coords: PackageCoordinates):
+    """
+    End-to-end static security analysis:
+    1. Ingestion (Metadata resolution, safe download, integrity check, safe extraction, inventory)
+    2. Module A: Metadata & Publisher Analysis
+    3. Module B: Typosquatting & Homoglyph Detection
+    4. Module C: Static Python & JavaScript AST Analysis
+    5. Module C: Shannon Entropy Obfuscation Analysis
+    6. Module G: Deduplication, Explainable Risk Scoring, and Verdict Generation
+    """
+    ingest_result = None
+    try:
+        ingest_result = ingestion_pipeline.ingest_package(coords)
+        report = detection_pipeline.analyze(ingest_result, job_id=f"adhoc-{coords.name}-{coords.version}")
+        return report
+    except (CoordinateValidationError, SSRFSecurityError) as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except RegistryResolutionError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except (DownloadIntegrityError, DownloadSizeLimitError, ArchiveExtractionError) as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except IngestionError as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    finally:
+        # Guarantee ephemeral workspace cleanup after analysis
+        if ingest_result:
+            try:
+                ingestion_pipeline.cleanup_workspace(ingest_result)
+            except Exception:
+                pass

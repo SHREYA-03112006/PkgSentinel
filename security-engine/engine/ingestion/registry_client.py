@@ -140,3 +140,4 @@ def validate_registry_url(url: str) -> str:
     resolve_and_validate_hostname(hostname)
 
     return url
+
