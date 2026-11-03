@@ -1,5 +1,11 @@
 version: '3.8'
 
+# ====================================================================
+# PkgSentinel — Canonical Production & Local Development Stack
+# Multi-container orchestration: PostgreSQL + Redis + Spring Boot +
+# Python Security Engine (API & Worker) + React / Nginx Frontend.
+# ====================================================================
+
 services:
   # -------------------------------------------------------------
   # 1. PostgreSQL Relational Database (Persistent Authoritative DB)
@@ -17,15 +23,16 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sentinel -d pkgsentinel"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sentinel} -d ${POSTGRES_DB:-pkgsentinel}"]
       interval: 5s
       timeout: 5s
       retries: 5
+      start_period: 10s
     networks:
       - pkgsentinel-net
 
   # -------------------------------------------------------------
-  # 2. Redis 7 Cache & Job Queue (Redis Streams)
+  # 2. Redis 7 Cache & Job Queue (Redis Streams: stream:scan-jobs)
   # -------------------------------------------------------------
   redis:
     image: redis:7-alpine
@@ -41,11 +48,12 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+      start_period: 5s
     networks:
       - pkgsentinel-net
 
   # -------------------------------------------------------------
-  # 3. Spring Boot Backend Orchestrator (State Owner)
+  # 3. Spring Boot Backend Orchestrator (State Owner & Outbox)
   # -------------------------------------------------------------
   backend:
     build:
@@ -61,10 +69,18 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sentinel_dev_secret_change_me}
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       BACKEND_PORT: 8080
-      LOG_LEVEL: INFO
+      INTERNAL_AUTH_SECRET: ${INTERNAL_AUTH_SECRET:-sentinel-internal-secure-token-2026}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
     ports:
       - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/api/v1/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
     depends_on:
       postgres:
         condition: service_healthy
@@ -74,7 +90,7 @@ services:
       - pkgsentinel-net
 
   # -------------------------------------------------------------
-  # 4. Python Security Engine (FastAPI & Heuristic Worker)
+  # 4. Python Security Engine API (FastAPI Ingestion & Detection)
   # -------------------------------------------------------------
   security-engine:
     build:
@@ -85,10 +101,18 @@ services:
     environment:
       SECURITY_ENGINE_REDIS_HOST: redis
       SECURITY_ENGINE_REDIS_PORT: 6379
+      SECURITY_ENGINE_REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       SECURITY_ENGINE_BACKEND_CALLBACK_URL: http://backend:8080/internal/v1/scans
-      EPHEMERAL_WORKSPACE_DIR: /tmp/pkgsentinel/workspaces
+      SECURITY_ENGINE_INTERNAL_AUTH_SECRET: ${INTERNAL_AUTH_SECRET:-sentinel-internal-secure-token-2026}
+      SECURITY_ENGINE_EPHEMERAL_WORKSPACE_DIR: ${SECURITY_ENGINE_EPHEMERAL_WORKSPACE_DIR:-/tmp/pkgsentinel/workspaces}
     ports:
       - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     depends_on:
       redis:
         condition: service_healthy
@@ -96,7 +120,34 @@ services:
       - pkgsentinel-net
 
   # -------------------------------------------------------------
-  # 5. React Frontend (Web Dashboard)
+  # 5. Dedicated Redis Streams Worker Daemon (Job Consumer)
+  # Consumes jobs from stream:scan-jobs, executes AST/heuristic
+  # pipelines, and posts authenticated callbacks to Spring Boot.
+  # -------------------------------------------------------------
+  worker:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.security-engine
+    container_name: pkgsentinel-worker
+    restart: unless-stopped
+    command: ["python", "-m", "engine.core.queue_consumer"]
+    environment:
+      SECURITY_ENGINE_REDIS_HOST: redis
+      SECURITY_ENGINE_REDIS_PORT: 6379
+      SECURITY_ENGINE_REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      SECURITY_ENGINE_BACKEND_CALLBACK_URL: http://backend:8080/internal/v1/scans
+      SECURITY_ENGINE_INTERNAL_AUTH_SECRET: ${INTERNAL_AUTH_SECRET:-sentinel-internal-secure-token-2026}
+      SECURITY_ENGINE_EPHEMERAL_WORKSPACE_DIR: ${SECURITY_ENGINE_EPHEMERAL_WORKSPACE_DIR:-/tmp/pkgsentinel/workspaces}
+    depends_on:
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    networks:
+      - pkgsentinel-net
+
+  # -------------------------------------------------------------
+  # 6. React Frontend (Web Dashboard + Nginx Reverse Proxy)
   # -------------------------------------------------------------
   frontend:
     build:
@@ -107,7 +158,8 @@ services:
     ports:
       - "3000:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
       - pkgsentinel-net
 
@@ -120,4 +172,3 @@ volumes:
 networks:
   pkgsentinel-net:
     driver: bridge
-

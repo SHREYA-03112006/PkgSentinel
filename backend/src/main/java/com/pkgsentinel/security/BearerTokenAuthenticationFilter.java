@@ -111,3 +111,4 @@ public class BearerTokenAuthenticationFilter extends OncePerRequestFilter {
         return false;
     }
 }
+
