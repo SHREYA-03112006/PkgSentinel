@@ -2,9 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { 
   Search, 
-  Zap, 
-  Layers, 
-  ArrowRight, 
   ShieldCheck, 
   AlertTriangle, 
   AlertOctagon, 
@@ -13,7 +10,6 @@ import {
   Activity,
   ChevronDown,
   ChevronUp,
-  Clock,
   RotateCcw
 } from 'lucide-react';
 
@@ -56,14 +52,13 @@ export const SingleScanPage: React.FC = () => {
   const [ecosystem, setEcosystem] = useState<'NPM' | 'PYPI'>('NPM');
   const [packageName, setPackageName] = useState('');
   const [version, setVersion] = useState('');
-  const [scanDepth, setScanDepth] = useState<'FAST' | 'DEEP'>('FAST');
 
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [activeStatus, setActiveStatus] = useState<'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [report, setReport] = useState<ScanReportResponse | null>(null);
-  const [expandedEvidence, setExpandedEvidence] = useState<Record<string, boolean>>({});
+  const [expandedFindings, setExpandedFindings] = useState<Record<string, boolean>>({});
 
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -79,9 +74,9 @@ export const SingleScanPage: React.FC = () => {
       const res = await fetch(`/api/v1/scans/${jobId}`);
       if (!res.ok) {
         if (res.status === 404) {
-          throw new Error(`Scan job ${jobId} not found.`);
+          throw new Error(`Job ${jobId} not found`);
         }
-        throw new Error(`HTTP ${res.status} polling scan status`);
+        throw new Error(`HTTP ${res.status}`);
       }
       const data: ScanReportResponse = await res.json();
       setActiveStatus(data.status);
@@ -97,10 +92,10 @@ export const SingleScanPage: React.FC = () => {
         stopPolling();
         setIsSubmitting(false);
         setReport(data);
-        setErrorMessage(data.failureReason || 'Package security scan failed during execution.');
+        setErrorMessage(data.failureReason || 'Package inspection failed');
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Error polling scan status';
+      const msg = err instanceof Error ? err.message : 'Polling error';
       setErrorMessage(msg);
       stopPolling();
       setIsSubmitting(false);
@@ -115,10 +110,7 @@ export const SingleScanPage: React.FC = () => {
     setErrorMessage(null);
     setReport(null);
 
-    // Initial immediate fetch
     pollScanStatus(jobId);
-
-    // Poll every 1.5s
     pollingRef.current = setInterval(() => {
       pollScanStatus(jobId);
     }, 1500);
@@ -134,8 +126,8 @@ export const SingleScanPage: React.FC = () => {
     };
   }, [searchParams, startPolling]);
 
-  const toggleEvidence = (id: string) => {
-    setExpandedEvidence(prev => ({ ...prev, [id]: !prev[id] }));
+  const toggleFinding = (id: string) => {
+    setExpandedFindings(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -164,15 +156,15 @@ export const SingleScanPage: React.FC = () => {
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.message || `Server returned HTTP ${res.status}`);
+        throw new Error(errData.message || `Server error: HTTP ${res.status}`);
       }
 
       const jobData = await res.json();
       setSearchParams({ jobId: jobData.jobId });
       startPolling(jobData.jobId);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to submit scan job';
-      setErrorMessage(`Submission failed: ${msg}. Verify Spring Boot is running on port 8080.`);
+      const msg = err instanceof Error ? err.message : 'Submission failed';
+      setErrorMessage(msg);
       setIsSubmitting(false);
     }
   };
@@ -187,33 +179,31 @@ export const SingleScanPage: React.FC = () => {
     setIsSubmitting(false);
   };
 
-  const severityBadgeClass = (severity: string) => {
-    switch (severity) {
-      case 'CRITICAL':
-        return 'bg-red-500/20 text-red-400 border-red-500/40';
-      case 'HIGH':
-        return 'bg-rose-500/15 text-rose-300 border-rose-500/30';
-      case 'MEDIUM':
-        return 'bg-amber-500/15 text-amber-300 border-amber-500/30';
-      case 'LOW':
-      default:
-        return 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30';
-    }
+  const setDemoPreset = (eco: 'NPM' | 'PYPI', name: string, ver: string) => {
+    setEcosystem(eco);
+    setPackageName(name);
+    setVersion(ver);
+  };
+
+  const severityCount = {
+    CRITICAL: report?.findings?.filter(f => f.severity === 'CRITICAL').length || 0,
+    HIGH: report?.findings?.filter(f => f.severity === 'HIGH').length || 0,
+    MEDIUM: report?.findings?.filter(f => f.severity === 'MEDIUM').length || 0,
+    LOW: report?.findings?.filter(f => f.severity === 'LOW').length || 0,
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
+      {/* Top Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-white">Target Package Analysis</h2>
-          <p className="text-sm text-slate-400 mt-1">
-            Perform zero-day heuristic inspection: metadata, typosquatting proximity, AST hazards, and Shannon entropy.
-          </p>
+          <h1 className="text-lg font-bold text-white tracking-tight">Package Heuristic Scanner</h1>
+          <p className="text-xs text-slate-400 mt-0.5">Static zero-day inspection for npm & PyPI packages.</p>
         </div>
         {(report || activeJobId) && (
           <button
             onClick={handleReset}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sentinel-surface hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-mono transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono transition-colors"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             <span>New Scan</span>
@@ -221,216 +211,202 @@ export const SingleScanPage: React.FC = () => {
         )}
       </div>
 
-      {/* Query Form */}
-      <form onSubmit={handleSubmit} className="bg-sentinel-card border border-sentinel-border rounded-xl p-6 space-y-6">
-        {/* Ecosystem Selection */}
-        <div>
-          <label className="block text-xs font-mono uppercase tracking-wider text-slate-300 mb-2">
-            Target Ecosystem
-          </label>
-          <div className="grid grid-cols-2 gap-3">
+      {/* Query Form (Hidden when report is shown to keep focus on verdict) */}
+      {!report && (
+        <form onSubmit={handleSubmit} className="bg-[#0f172a] border border-slate-800 rounded-lg p-5 space-y-4">
+          {/* Ecosystem Selection */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-mono text-slate-400 uppercase tracking-wider mr-2">Ecosystem:</span>
+            <div className="flex bg-slate-900 p-0.5 rounded-md border border-slate-800">
+              <button
+                type="button"
+                onClick={() => setEcosystem('NPM')}
+                disabled={isSubmitting}
+                className={`px-3 py-1 rounded text-xs font-medium transition-all ${
+                  ecosystem === 'NPM'
+                    ? 'bg-rose-500/20 text-rose-300 font-semibold border border-rose-500/30'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                npm
+              </button>
+              <button
+                type="button"
+                onClick={() => setEcosystem('PYPI')}
+                disabled={isSubmitting}
+                className={`px-3 py-1 rounded text-xs font-medium transition-all ${
+                  ecosystem === 'PYPI'
+                    ? 'bg-blue-500/20 text-blue-300 font-semibold border border-blue-500/30'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                PyPI
+              </button>
+            </div>
+          </div>
+
+          {/* Package Coordinates Input */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="md:col-span-2">
+              <label className="block text-[11px] font-mono text-slate-400 uppercase tracking-wider mb-1">
+                Package Name
+              </label>
+              <input
+                type="text"
+                value={packageName}
+                onChange={(e) => setPackageName(e.target.value)}
+                placeholder={ecosystem === 'NPM' ? 'e.g. chalk or @scope/pkg' : 'e.g. requests'}
+                required
+                disabled={isSubmitting}
+                className="w-full bg-[#1e293b] border border-slate-800 rounded-md px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 font-mono transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-mono text-slate-400 uppercase tracking-wider mb-1">
+                Version
+              </label>
+              <input
+                type="text"
+                value={version}
+                onChange={(e) => setVersion(e.target.value)}
+                placeholder="e.g. 1.0.0"
+                required
+                disabled={isSubmitting}
+                className="w-full bg-[#1e293b] border border-slate-800 rounded-md px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 font-mono transition-colors"
+              />
+            </div>
+          </div>
+
+          {/* Demo Presets Bar */}
+          <div className="pt-1 flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] font-mono text-slate-400">Presets:</span>
             <button
               type="button"
-              onClick={() => setEcosystem('NPM')}
-              disabled={isSubmitting}
-              className={`flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-medium text-sm border transition-all ${
-                ecosystem === 'NPM'
-                  ? 'bg-sentinel-accent/20 border-sentinel-cyan text-white shadow-sm shadow-cyan-950'
-                  : 'bg-sentinel-surface border-sentinel-border text-slate-400 hover:text-white'
-              }`}
+              onClick={() => setDemoPreset('NPM', 'chalk', '5.3.0')}
+              className="px-2 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 text-[11px] font-mono text-slate-300 transition-colors"
             >
-              <span className="w-2 h-2 rounded-full bg-red-400"></span>
-              <span>npm (JavaScript / TypeScript)</span>
+              chalk@5.3.0
             </button>
             <button
               type="button"
-              onClick={() => setEcosystem('PYPI')}
-              disabled={isSubmitting}
-              className={`flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-medium text-sm border transition-all ${
-                ecosystem === 'PYPI'
-                  ? 'bg-sentinel-accent/20 border-sentinel-cyan text-white shadow-sm shadow-cyan-950'
-                  : 'bg-sentinel-surface border-sentinel-border text-slate-400 hover:text-white'
-              }`}
+              onClick={() => setDemoPreset('NPM', 'express', '4.19.2')}
+              className="px-2 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 text-[11px] font-mono text-slate-300 transition-colors"
             >
-              <span className="w-2 h-2 rounded-full bg-blue-400"></span>
-              <span>PyPI (Python Ecosystem)</span>
+              express@4.19.2
+            </button>
+            <button
+              type="button"
+              onClick={() => setDemoPreset('PYPI', 'requests', '2.31.0')}
+              className="px-2 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 text-[11px] font-mono text-slate-300 transition-colors"
+            >
+              requests@2.31.0
+            </button>
+            <button
+              type="button"
+              onClick={() => setDemoPreset('PYPI', 'requests-fake', '1.0.0')}
+              className="px-2 py-0.5 rounded bg-rose-950/40 border border-rose-900/40 hover:bg-rose-900/50 text-[11px] font-mono text-rose-300 transition-colors"
+            >
+              requests-fake (Typosquat)
             </button>
           </div>
-        </div>
 
-        {/* Package Coordinates */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="md:col-span-2">
-            <label className="block text-xs font-mono uppercase tracking-wider text-slate-300 mb-2">
-              Package Name
-            </label>
-            <input
-              type="text"
-              value={packageName}
-              onChange={(e) => setPackageName(e.target.value)}
-              placeholder={ecosystem === 'NPM' ? 'e.g. chalk or @scope/pkg' : 'e.g. requests'}
-              required
+          {/* Submit Action */}
+          <div className="pt-2">
+            <button
+              type="submit"
               disabled={isSubmitting}
-              className="w-full bg-sentinel-surface border border-sentinel-border rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-sentinel-cyan transition-colors"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-mono uppercase tracking-wider text-slate-300 mb-2">
-              Version
-            </label>
-            <input
-              type="text"
-              value={version}
-              onChange={(e) => setVersion(e.target.value)}
-              placeholder="e.g. 1.0.0"
-              required
-              disabled={isSubmitting}
-              className="w-full bg-sentinel-surface border border-sentinel-border rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-sentinel-cyan transition-colors font-mono"
-            />
-          </div>
-        </div>
-
-        {/* Scan Depth Selector */}
-        <div>
-          <label className="block text-xs font-mono uppercase tracking-wider text-slate-300 mb-2">
-            Scan Depth Mode
-          </label>
-          <div className="grid grid-cols-2 gap-3">
-            <div
-              onClick={() => !isSubmitting && setScanDepth('FAST')}
-              className={`p-4 rounded-lg border cursor-pointer transition-all ${
-                scanDepth === 'FAST'
-                  ? 'bg-sentinel-accent/10 border-sentinel-cyan text-white'
-                  : 'bg-sentinel-surface border-sentinel-border text-slate-400 hover:border-slate-600'
-              }`}
+              className="w-full py-2.5 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-slate-950 font-bold rounded-md text-xs transition-colors flex items-center justify-center gap-2"
             >
-              <div className="flex items-center gap-2">
-                <Zap className="w-4 h-4 text-amber-400" />
-                <span className="font-semibold text-sm">Static Heuristic Fast-Path</span>
-              </div>
-              <p className="text-xs text-slate-400 mt-1">
-                Metadata scrutiny, typosquatting proximity, AST analysis, and Shannon entropy estimation.
-              </p>
-            </div>
-
-            <div
-              onClick={() => !isSubmitting && setScanDepth('DEEP')}
-              className={`p-4 rounded-lg border cursor-pointer transition-all opacity-75 ${
-                scanDepth === 'DEEP'
-                  ? 'bg-sentinel-accent/10 border-sentinel-cyan text-white'
-                  : 'bg-sentinel-surface border-sentinel-border text-slate-400 hover:border-slate-600'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <Layers className="w-4 h-4 text-sentinel-cyan" />
-                <span className="font-semibold text-sm">Deep Dynamic Sandbox (Phase 2)</span>
-              </div>
-              <p className="text-xs text-slate-400 mt-1">
-                Full Docker canary detonation with network sinkhole egress surveillance.
-              </p>
-            </div>
+              {isSubmitting ? (
+                <>
+                  <Activity className="w-3.5 h-3.5 animate-spin text-slate-950" />
+                  <span>Analyzing Package...</span>
+                </>
+              ) : (
+                <>
+                  <Search className="w-3.5 h-3.5" />
+                  <span>Analyze Package</span>
+                </>
+              )}
+            </button>
           </div>
-        </div>
 
-        {/* Submit Button */}
-        <div className="pt-2">
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full py-3 bg-sentinel-accent hover:bg-sentinel-accent-hover disabled:opacity-50 text-slate-950 font-bold rounded-lg text-sm transition-colors flex items-center justify-center gap-2 shadow-sm shadow-cyan-500/20"
-          >
-            {isSubmitting ? (
-              <span className="flex items-center gap-2">
-                <Activity className="w-4 h-4 animate-spin text-slate-950" />
-                <span>Asynchronous Scan In Progress...</span>
-              </span>
-            ) : (
-              <>
-                <Search className="w-4 h-4" />
-                <span>Submit Asynchronous Scan Job</span>
-                <ArrowRight className="w-4 h-4" />
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* Asynchronous Lifecycle Tracker */}
-        {isSubmitting && activeJobId && (
-          <div className="mt-4 p-4 rounded-xl bg-sentinel-surface/80 border border-sentinel-cyan/30 space-y-3">
-            <div className="flex items-center justify-between text-xs font-mono">
-              <span className="text-slate-300">Job ID: <span className="text-sentinel-cyan">{activeJobId}</span></span>
-              <span className="text-slate-400 flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 animate-spin" />
-                Polling status (1.5s interval)
-              </span>
-            </div>
-            
-            <div className="grid grid-cols-3 gap-2 text-xs font-mono text-center pt-2">
-              <div className={`p-2.5 rounded-lg border transition-all ${
-                activeStatus === 'QUEUED'
-                  ? 'bg-cyan-500/20 border-cyan-400 text-white animate-pulse'
-                  : 'bg-sentinel-bg border-sentinel-border text-slate-400'
-              }`}>
-                1. Redis Outbox Queue
-              </div>
-              <div className={`p-2.5 rounded-lg border transition-all ${
-                activeStatus === 'PROCESSING'
-                  ? 'bg-amber-500/20 border-amber-400 text-white animate-pulse'
-                  : 'bg-sentinel-bg border-sentinel-border text-slate-400'
-              }`}>
-                2. Python AST Analysis
-              </div>
-              <div className={`p-2.5 rounded-lg border transition-all ${
-                activeStatus === 'COMPLETED'
-                  ? 'bg-emerald-500/20 border-emerald-400 text-white'
-                  : 'bg-sentinel-bg border-sentinel-border text-slate-400'
-              }`}>
-                3. Finalized in PostgreSQL
-              </div>
-            </div>
-          </div>
-        )}
-
-        {errorMessage && (
-          <div className="p-4 rounded-lg bg-red-950/40 border border-red-800 text-xs text-red-200">
-            {errorMessage}
-          </div>
-        )}
-      </form>
-
-      {/* Actual Live Analysis Report */}
-      {report && report.status === 'COMPLETED' && (
-        <div className="space-y-6 animate-in fade-in duration-300">
-          {/* Verdict Scorecard Header */}
-          <div className="bg-sentinel-card border border-sentinel-border rounded-xl p-6">
-            <div className="flex flex-wrap items-center justify-between gap-4 pb-6 border-b border-sentinel-border">
-              <div>
-                <span className="text-xs font-mono text-sentinel-cyan uppercase tracking-widest">
-                  {report.ecosystem} Security Verdict
+          {/* Asynchronous Lifecycle Progress */}
+          {isSubmitting && (
+            <div className="mt-3 p-3 rounded-md bg-slate-900 border border-slate-800 space-y-2">
+              <div className="flex items-center justify-between text-xs font-mono">
+                <span className="text-slate-400">Job: <span className="text-cyan-400">{activeJobId || 'Initializing'}</span></span>
+                <span className="text-cyan-400 flex items-center gap-1 font-semibold">
+                  <Activity className="w-3 h-3 animate-spin" />
+                  {activeStatus || 'DISPATCHING'}
                 </span>
-                <h3 className="text-2xl font-bold font-mono text-white mt-1">
-                  {report.name} <span className="text-slate-400 text-lg">@{report.version}</span>
-                </h3>
-                <p className="text-xs font-mono text-slate-400 mt-1">
-                  Job ID: {report.jobId}
-                </p>
+              </div>
+              
+              <div className="grid grid-cols-3 gap-2 text-[11px] font-mono text-center pt-1">
+                <div className={`p-1.5 rounded border ${
+                  activeStatus === 'QUEUED'
+                    ? 'bg-cyan-500/20 border-cyan-400 text-white font-semibold'
+                    : 'bg-slate-950 border-slate-800 text-slate-400'
+                }`}>
+                  1. Queued
+                </div>
+                <div className={`p-1.5 rounded border ${
+                  activeStatus === 'PROCESSING'
+                    ? 'bg-amber-500/20 border-amber-400 text-white font-semibold'
+                    : 'bg-slate-950 border-slate-800 text-slate-400'
+                }`}>
+                  2. AST Analysis
+                </div>
+                <div className={`p-1.5 rounded border ${
+                  activeStatus === 'COMPLETED'
+                    ? 'bg-emerald-500/20 border-emerald-400 text-white font-semibold'
+                    : 'bg-slate-950 border-slate-800 text-slate-400'
+                }`}>
+                  3. Persisted
+                </div>
+              </div>
+            </div>
+          )}
+
+          {errorMessage && (
+            <div className="p-3 rounded-md bg-rose-950/30 border border-rose-800/40 text-xs text-rose-300 font-mono">
+              {errorMessage}
+            </div>
+          )}
+        </form>
+      )}
+
+      {/* COMPLETED SECURITY REPORT */}
+      {report && (
+        <div className="space-y-4">
+          {/* Verdict Scorecard Header */}
+          <div className="bg-[#0f172a] border border-slate-800 rounded-lg p-5">
+            <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-800">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold ${
+                    report.ecosystem === 'NPM' ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30' : 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                  }`}>
+                    {report.ecosystem}
+                  </span>
+                  <span className="text-xs font-mono text-slate-400">{report.jobId}</span>
+                </div>
+                <h2 className="text-xl font-bold font-mono text-white mt-1">
+                  {report.name} <span className="text-slate-400 text-base">@{report.version}</span>
+                </h2>
               </div>
 
-              {/* Verdict Pill */}
+              {/* Large Risk & Verdict Badges */}
               <div className="flex items-center gap-4">
                 <div className="text-right">
-                  <div className="text-xs font-mono text-slate-400">Risk Score</div>
-                  <div className="text-3xl font-bold font-mono text-white">
-                    {report.riskScore ?? 0} <span className="text-sm text-slate-400">/ 100</span>
+                  <div className="text-[10px] font-mono text-slate-400 uppercase">Risk Score</div>
+                  <div className="text-3xl font-bold font-mono text-white leading-none mt-0.5">
+                    {report.riskScore ?? 0}
+                    <span className="text-xs text-slate-400 font-normal"> / 100</span>
                   </div>
-                  {report.rawScore !== undefined && (
-                    <div className="text-[11px] font-mono text-slate-500">
-                      Raw: {report.rawScore}
-                    </div>
-                  )}
                 </div>
 
-                <div className={`px-4 py-2 rounded-xl border flex items-center gap-2 font-bold font-mono text-sm ${
+                <div className={`px-4 py-2 rounded-lg border flex items-center gap-2 font-bold font-mono text-sm ${
                   report.verdict === 'MALICIOUS'
                     ? 'bg-rose-500/20 text-rose-400 border-rose-500/40'
                     : report.verdict === 'SUSPICIOUS'
@@ -449,14 +425,32 @@ export const SingleScanPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Verdict Reasons */}
+            {/* Severity Distribution & Confidence */}
+            <div className="mt-3 flex items-center justify-between text-xs font-mono text-slate-400">
+              <div className="flex items-center gap-3">
+                <span>Findings:</span>
+                <span className="text-rose-400 font-semibold">{severityCount.CRITICAL} Critical</span>
+                <span className="text-rose-300">{severityCount.HIGH} High</span>
+                <span className="text-amber-300">{severityCount.MEDIUM} Medium</span>
+                <span className="text-cyan-300">{severityCount.LOW} Low</span>
+              </div>
+              {report.confidenceScore !== undefined && (
+                <div className="text-slate-300">
+                  Confidence: {Math.round(report.confidenceScore * 100)}%
+                </div>
+              )}
+            </div>
+
+            {/* Verdict Attribution Reasons */}
             {report.verdictReasons && report.verdictReasons.length > 0 && (
-              <div className="mt-4 space-y-2">
-                <span className="text-xs font-mono text-slate-400 uppercase tracking-wider">Verdict Attribution:</span>
+              <div className="mt-3 p-3 rounded bg-slate-900/80 border border-slate-800 text-xs">
+                <span className="font-mono text-slate-400 uppercase tracking-wider text-[10px] block mb-1">
+                  Verdict Attribution:
+                </span>
                 <ul className="space-y-1">
                   {report.verdictReasons.map((reason, idx) => (
-                    <li key={idx} className="text-sm text-slate-200 flex items-start gap-2">
-                      <span className="text-sentinel-cyan mt-1">•</span>
+                    <li key={idx} className="text-slate-200 flex items-start gap-1.5 font-mono text-[11px]">
+                      <span className="text-cyan-400">•</span>
                       <span>{reason}</span>
                     </li>
                   ))}
@@ -464,105 +458,108 @@ export const SingleScanPage: React.FC = () => {
               </div>
             )}
 
-            {/* Coverage Badges */}
+            {/* Analysis Coverage Pills */}
             {report.analysisCoverage && (
-              <div className="mt-6 pt-4 border-t border-sentinel-border flex flex-wrap gap-2 text-xs font-mono">
-                <span className="text-slate-400 py-1">Analysis Coverage:</span>
+              <div className="mt-3 pt-3 border-t border-slate-800 flex flex-wrap items-center gap-2 text-[11px] font-mono">
+                <span className="text-slate-400 mr-1">Coverage:</span>
                 {Object.entries(report.analysisCoverage).map(([mod, status]) => (
                   <span
                     key={mod}
-                    className={`px-2.5 py-1 rounded-md border ${
+                    className={`px-2 py-0.5 rounded border ${
                       status === 'COMPLETED'
-                        ? 'bg-sentinel-surface text-emerald-400 border-emerald-800/40'
-                        : 'bg-red-950/40 text-red-400 border-red-800/40'
+                        ? 'bg-slate-900 text-emerald-400 border-slate-800'
+                        : 'bg-rose-950/30 text-rose-400 border-rose-900/30'
                     }`}
                   >
                     {mod}: {status}
                   </span>
                 ))}
-                {report.confidenceScore !== undefined && (
-                  <span className="px-2.5 py-1 rounded-md bg-sentinel-surface text-slate-300 border border-sentinel-border ml-auto">
-                    Confidence: {Math.round(report.confidenceScore * 100)}%
-                  </span>
-                )}
               </div>
             )}
           </div>
 
-          {/* Findings List */}
-          <div className="bg-sentinel-card border border-sentinel-border rounded-xl p-6">
-            <div className="flex items-center justify-between pb-4 border-b border-sentinel-border">
-              <h4 className="font-bold text-white text-base flex items-center gap-2">
-                <FileCode className="w-4 h-4 text-sentinel-cyan" />
-                <span>Normalized Security Findings ({report.findings?.length || 0})</span>
-              </h4>
+          {/* Security Findings List */}
+          <div className="bg-[#0f172a] border border-slate-800 rounded-lg p-5">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                <FileCode className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Security Findings ({report.findings?.length || 0})</span>
+              </h3>
             </div>
 
             {(!report.findings || report.findings.length === 0) ? (
-              <div className="py-10 text-center text-slate-400">
-                <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto mb-2" />
-                <p className="text-sm text-slate-300">Clean bill of health: 0 security findings detected.</p>
-                <p className="text-xs text-slate-500 mt-1">Package source and metadata do not exhibit known malicious patterns.</p>
+              <div className="py-8 text-center text-slate-400">
+                <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto mb-1.5" />
+                <p className="text-xs text-slate-200 font-medium">Clean bill of health</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">0 malicious indicators or suspicious APIs detected.</p>
               </div>
             ) : (
-              <div className="divide-y divide-sentinel-border mt-2">
-                {report.findings.map((finding) => (
-                  <div key={finding.findingId} className="py-4 space-y-2">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className={`px-2 py-0.5 rounded text-[11px] font-mono border font-bold ${severityBadgeClass(finding.severity)}`}>
-                            {finding.severity}
-                          </span>
-                          <span className="font-mono text-xs text-slate-400">{finding.ruleId}</span>
-                          <span className="text-xs text-slate-500">[{finding.category}]</span>
-                        </div>
-                        <h5 className="font-semibold text-white text-sm">{finding.title}</h5>
-                      </div>
-
-                      <span className="text-xs font-mono text-slate-400 shrink-0">
-                        Method: {finding.detectionMethod}
-                      </span>
-                    </div>
-
-                    <p className="text-xs text-slate-300 leading-relaxed">{finding.description}</p>
-
-                    {finding.filePath && (
-                      <div className="text-xs font-mono text-sentinel-cyan flex items-center gap-2">
-                        <span>Target: {finding.filePath}</span>
-                        {finding.lineNumber && <span>(Line: {finding.lineNumber})</span>}
-                      </div>
-                    )}
-
-                    {finding.codeSnippet && (
-                      <div className="pt-1">
-                        <button
-                          type="button"
-                          onClick={() => toggleEvidence(finding.findingId)}
-                          className="text-[11px] font-mono text-slate-400 hover:text-slate-200 flex items-center gap-1 transition-colors"
-                        >
-                          {expandedEvidence[finding.findingId] ? (
-                            <>
-                              <ChevronUp className="w-3.5 h-3.5" />
-                              <span>Hide Code Snippet</span>
-                            </>
-                          ) : (
-                            <>
-                              <ChevronDown className="w-3.5 h-3.5" />
-                              <span>Show Code Snippet</span>
-                            </>
+              <div className="divide-y divide-slate-800/80 mt-1">
+                {report.findings.map((f) => {
+                  const isExpanded = expandedFindings[f.findingId];
+                  return (
+                    <div key={f.findingId} className="py-3">
+                      <div 
+                        onClick={() => toggleFinding(f.findingId)}
+                        className="flex items-start justify-between gap-3 cursor-pointer select-none"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold ${
+                              f.severity === 'CRITICAL' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' :
+                              f.severity === 'HIGH' ? 'bg-rose-500/15 text-rose-300 border border-rose-500/20' :
+                              f.severity === 'MEDIUM' ? 'bg-amber-500/15 text-amber-300 border border-amber-500/20' :
+                              'bg-cyan-500/15 text-cyan-300 border border-cyan-500/20'
+                            }`}>
+                              {f.severity}
+                            </span>
+                            <span className="text-[11px] font-mono text-slate-400">{f.ruleId}</span>
+                            <span className="text-[11px] text-slate-400">[{f.category}]</span>
+                          </div>
+                          <div className="text-xs font-semibold text-white">
+                            {f.title}
+                          </div>
+                          {f.filePath && (
+                            <div className="text-[11px] font-mono text-cyan-400">
+                              Target: {f.filePath} {f.lineNumber ? `(Line: ${f.lineNumber})` : ''}
+                            </div>
                           )}
-                        </button>
+                        </div>
 
-                        {expandedEvidence[finding.findingId] && (
-                          <pre className="mt-2 p-3 rounded-lg bg-sentinel-bg border border-sentinel-border text-[11px] font-mono text-slate-300 overflow-x-auto">
-                            {finding.codeSnippet}
-                          </pre>
-                        )}
+                        <div className="flex items-center gap-2 text-slate-400 shrink-0 mt-1">
+                          <span className="text-[10px] font-mono text-slate-400">
+                            {isExpanded ? 'Collapse' : 'Details'}
+                          </span>
+                          {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        </div>
                       </div>
-                    )}
-                  </div>
-                ))}
+
+                      {/* Expandable Technical Detail */}
+                      {isExpanded && (
+                        <div className="mt-3 p-3 rounded bg-slate-900 border border-slate-800 text-xs space-y-2">
+                          <p className="text-slate-300 leading-relaxed text-xs">
+                            {f.description}
+                          </p>
+
+                          <div className="grid grid-cols-2 gap-2 text-[11px] font-mono text-slate-400 pt-1">
+                            <div>Module: <span className="text-slate-200">{f.moduleName}</span></div>
+                            <div>Method: <span className="text-slate-200">{f.detectionMethod}</span></div>
+                            <div>Confidence: <span className="text-slate-200">{Math.round(f.confidence * 100)}%</span></div>
+                          </div>
+
+                          {f.codeSnippet && (
+                            <div className="pt-2">
+                              <span className="text-[10px] font-mono uppercase text-slate-400 block mb-1">Evidence Code Snippet:</span>
+                              <pre className="p-2.5 rounded bg-black/50 border border-slate-800 text-[11px] font-mono text-emerald-300 overflow-x-auto">
+                                {f.codeSnippet}
+                              </pre>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

@@ -1,13 +1,11 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { 
-  ShieldAlert, 
+  ShieldCheck, 
   LayoutDashboard, 
   Search, 
-  FileCode2, 
-  History, 
-  Settings,
-  Cpu
+  History,
+  Activity
 } from 'lucide-react';
 
 interface NavItem {
@@ -17,39 +15,37 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { name: 'Dashboard', path: '/', icon: LayoutDashboard },
-  { name: 'Package Scanner', path: '/scan', icon: Search },
-  { name: 'Lockfile Inspector', path: '/lockfile', icon: FileCode2 },
+  { name: 'Overview', path: '/', icon: LayoutDashboard },
+  { name: 'Scan Package', path: '/scan', icon: Search },
   { name: 'Scan History', path: '/history', icon: History },
-  { name: 'Settings', path: '/settings', icon: Settings },
 ];
 
 export const Sidebar: React.FC = () => {
   return (
-    <aside className="w-64 border-r border-sentinel-border bg-sentinel-card flex flex-col justify-between shrink-0">
+    <aside className="w-60 border-r border-slate-800 bg-[#0b101b] flex flex-col justify-between shrink-0 select-none">
       <div>
         {/* Brand Header */}
-        <div className="h-16 flex items-center gap-3 px-6 border-b border-sentinel-border bg-[#0a0f1d]/60">
-          <div className="p-2 bg-sentinel-accent/10 border border-sentinel-accent/30 rounded-lg">
-            <ShieldAlert className="w-6 h-6 text-sentinel-accent" />
+        <div className="h-14 flex items-center gap-2.5 px-5 border-b border-slate-800/80">
+          <div className="p-1.5 bg-cyan-500/10 border border-cyan-500/20 rounded-md">
+            <ShieldCheck className="w-4 h-4 text-cyan-400" />
           </div>
-          <div>
-            <h1 className="font-bold text-base tracking-wide text-white">PkgSentinel</h1>
-            <p className="text-[10px] text-sentinel-cyan tracking-widest uppercase font-mono">Zero-Day Defense</p>
+          <div className="flex items-baseline gap-1.5">
+            <span className="font-bold text-sm tracking-tight text-white">PkgSentinel</span>
+            <span className="text-[10px] font-mono text-cyan-400 font-semibold uppercase">v0.1</span>
           </div>
         </div>
 
         {/* Navigation Links */}
-        <nav className="p-4 space-y-1.5">
+        <nav className="p-3 space-y-1">
           {navItems.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                `flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
                   isActive
-                    ? 'bg-sentinel-accent/15 text-sentinel-cyan border border-sentinel-accent/30 shadow-sm shadow-cyan-950'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-sentinel-surface/50'
+                    ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-semibold'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
                 }`
               }
             >
@@ -60,30 +56,19 @@ export const Sidebar: React.FC = () => {
         </nav>
       </div>
 
-      {/* Engine Status Pill */}
-      <div className="p-4 border-t border-sentinel-border bg-[#0a0f1d]/40">
-        <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-          <span className="flex items-center gap-1.5 font-medium">
-            <Cpu className="w-3.5 h-3.5 text-sentinel-cyan" />
+      {/* Engine Status */}
+      <div className="p-3 border-t border-slate-800/80 bg-[#090d16]">
+        <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
+          <span className="flex items-center gap-1.5">
+            <Activity className="w-3 h-3 text-cyan-400" />
             Security Core
           </span>
-          <span className="flex items-center gap-1 text-[11px] text-emerald-400 font-mono">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-semibold">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
             ACTIVE
           </span>
-        </div>
-        <div className="bg-sentinel-surface p-2.5 rounded-md border border-sentinel-border/70 text-[11px] text-slate-400 space-y-1 font-mono">
-          <div className="flex justify-between">
-            <span>Orchestrator:</span>
-            <span className="text-slate-200">Spring Boot 3.3</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Detection Engine:</span>
-            <span className="text-slate-200">Python 3.11+</span>
-          </div>
         </div>
       </div>
     </aside>
   );
 };
-
