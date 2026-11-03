@@ -46,3 +46,4 @@ public class UserSessionEntity {
         return Instant.now().isAfter(expiresAt);
     }
 }
+

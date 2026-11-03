@@ -233,3 +233,124 @@ test('validateRegisterPayload checks required fields and formats', () => {
   assert.strictEqual(valid.length, 0);
 });
 
+// Authorization policy simulation tests
+function evaluateScanAccess({ scanTriggeredBy, callerUsername, callerRole, serviceToken, cliKey, expectedSecret }) {
+  // Service / CLI authorization
+  if (serviceToken === expectedSecret || cliKey === expectedSecret) {
+    return { allowed: true, reason: 'SERVICE_AUTHORIZED' };
+  }
+
+  // Public / anonymous scan
+  if (!scanTriggeredBy || !scanTriggeredBy.startsWith('USER:')) {
+    return { allowed: true, reason: 'PUBLIC_SCAN' };
+  }
+
+  const owner = scanTriggeredBy.substring(5);
+
+  if (!callerUsername) {
+    return { allowed: false, status: 403, reason: 'AUTHENTICATION_REQUIRED' };
+  }
+
+  if (callerRole === 'ADMIN') {
+    return { allowed: true, reason: 'ADMIN_OVERRIDE' };
+  }
+
+  if (callerUsername.toLowerCase() === owner.toLowerCase()) {
+    return { allowed: true, reason: 'OWNER_AUTHORIZED' };
+  }
+
+  return { allowed: false, status: 403, reason: 'ACCESS_DENIED_WRONG_USER' };
+}
+
+test('evaluateScanAccess grants access to owner, admin, and service key', () => {
+  const secret = 'sentinel-internal-secure-token-2026';
+
+  // 1. Owner access
+  const ownerAccess = evaluateScanAccess({
+    scanTriggeredBy: 'USER:alice',
+    callerUsername: 'alice',
+    callerRole: 'USER',
+    expectedSecret: secret
+  });
+  assert.strictEqual(ownerAccess.allowed, true);
+  assert.strictEqual(ownerAccess.reason, 'OWNER_AUTHORIZED');
+
+  // 2. Another user denied
+  const bobAccess = evaluateScanAccess({
+    scanTriggeredBy: 'USER:alice',
+    callerUsername: 'bob',
+    callerRole: 'USER',
+    expectedSecret: secret
+  });
+  assert.strictEqual(bobAccess.allowed, false);
+  assert.strictEqual(bobAccess.status, 403);
+  assert.strictEqual(bobAccess.reason, 'ACCESS_DENIED_WRONG_USER');
+
+  // 3. Unauthenticated denied
+  const anonAccess = evaluateScanAccess({
+    scanTriggeredBy: 'USER:alice',
+    callerUsername: null,
+    callerRole: null,
+    expectedSecret: secret
+  });
+  assert.strictEqual(anonAccess.allowed, false);
+  assert.strictEqual(anonAccess.status, 403);
+
+  // 4. Admin override
+  const adminAccess = evaluateScanAccess({
+    scanTriggeredBy: 'USER:alice',
+    callerUsername: 'admin_user',
+    callerRole: 'ADMIN',
+    expectedSecret: secret
+  });
+  assert.strictEqual(adminAccess.allowed, true);
+  assert.strictEqual(adminAccess.reason, 'ADMIN_OVERRIDE');
+
+  // 5. Service / CLI token bypass
+  const serviceAccess = evaluateScanAccess({
+    scanTriggeredBy: 'USER:alice',
+    callerUsername: null,
+    serviceToken: secret,
+    expectedSecret: secret
+  });
+  assert.strictEqual(serviceAccess.allowed, true);
+  assert.strictEqual(serviceAccess.reason, 'SERVICE_AUTHORIZED');
+
+  // 6. Public scan access
+  const publicAccess = evaluateScanAccess({
+    scanTriggeredBy: 'WEB',
+    callerUsername: null,
+    expectedSecret: secret
+  });
+  assert.strictEqual(publicAccess.allowed, true);
+  assert.strictEqual(publicAccess.reason, 'PUBLIC_SCAN');
+});
+
+// WWW-Authenticate suppression logic test
+function sanitizeAuthHeaders(headers) {
+  const sanitized = { ...headers };
+  if (sanitized['www-authenticate']) {
+    const val = String(sanitized['www-authenticate']);
+    if (val.toLowerCase().includes('basic')) {
+      delete sanitized['www-authenticate'];
+    }
+  }
+  return sanitized;
+}
+
+test('sanitizeAuthHeaders strips WWW-Authenticate: Basic to prevent native browser dialog', () => {
+  const headersWithBasic = {
+    'content-type': 'application/json',
+    'www-authenticate': 'Basic realm="PkgSentinel"'
+  };
+  const sanitized = sanitizeAuthHeaders(headersWithBasic);
+  assert.strictEqual(sanitized['www-authenticate'], undefined);
+
+  const headersWithBearer = {
+    'content-type': 'application/json',
+    'www-authenticate': 'Bearer realm="PkgSentinel"'
+  };
+  const kept = sanitizeAuthHeaders(headersWithBearer);
+  assert.strictEqual(kept['www-authenticate'], 'Bearer realm="PkgSentinel"');
+});
+

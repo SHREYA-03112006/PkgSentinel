@@ -12,3 +12,4 @@ public interface UserSessionRepository extends JpaRepository<UserSessionEntity, 
     Optional<UserSessionEntity> findByToken(String token);
     void deleteByUserId(UUID userId);
 }
+

@@ -9,3 +9,4 @@ public record UserSummary(
     String fullName,
     String role
 ) {}
+

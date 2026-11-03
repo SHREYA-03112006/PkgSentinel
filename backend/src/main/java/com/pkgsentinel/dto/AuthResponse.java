@@ -5,3 +5,4 @@ public record AuthResponse(
     UserSummary user,
     String message
 ) {}
+

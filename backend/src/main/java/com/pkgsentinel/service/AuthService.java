@@ -136,3 +136,4 @@ public class AuthService {
         return "sentinel_sec_" + HexFormat.of().formatHex(randomBytes);
     }
 }
+

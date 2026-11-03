@@ -114,3 +114,4 @@ export async function logoutUser(): Promise<void> {
   }
   authStorage.clear();
 }
+

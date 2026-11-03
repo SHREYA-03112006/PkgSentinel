@@ -8,9 +8,10 @@ export interface HistoryResponse {
   total: number;
 }
 
-export async function getScanHistory(page: number = 0, size: number = 50): Promise<HistoryResponse> {
+export async function getScanHistory(page: number = 0, size: number = 50, myScansOnly: boolean = false): Promise<HistoryResponse> {
   try {
-    const pageData = await request<BackendPage<BackendScanReport>>(`/scans?page=${page}&size=${size}`);
+    const query = myScansOnly ? `/scans?page=${page}&size=${size}&myScansOnly=true` : `/scans?page=${page}&size=${size}`;
+    const pageData = await request<BackendPage<BackendScanReport>>(query);
     const items: UIHistoryItem[] = (pageData.content || []).map((report) => {
       const risk = report.riskScore ? Number(report.riskScore) : 0;
       const { decision, classification } = mapBackendVerdictToUI(report.verdict, risk);

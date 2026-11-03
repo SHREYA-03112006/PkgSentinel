@@ -28,6 +28,11 @@ export async function request<T>(endpoint: string, options: RequestInit = {}): P
     headers.set('Content-Type', 'application/json');
   }
 
+  // Identify SPA fetch requests to prevent basic auth challenges
+  if (!headers.has('X-Requested-With')) {
+    headers.set('X-Requested-With', 'XMLHttpRequest');
+  }
+
   // Inject Bearer token if present and not explicitly provided
   if (!headers.has('Authorization')) {
     try {

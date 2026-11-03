@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { History, Search, RefreshCw, ChevronRight, ShieldCheck, ShieldAlert, AlertTriangle, Layers } from 'lucide-react';
+import { History, Search, RefreshCw, ChevronRight, ShieldCheck, ShieldAlert, AlertTriangle, Layers, User } from 'lucide-react';
 import { getScans } from '../services/scanService';
 import { UIHistoryItem } from '../types/scan';
+import { useAuth } from '../context/AuthContext';
 
 interface ScanHistoryProps {
   onSelectScan: (id: string) => void;
@@ -9,22 +10,24 @@ interface ScanHistoryProps {
 }
 
 export const ScanHistory: React.FC<ScanHistoryProps> = ({ onSelectScan, refreshTrigger }) => {
+  const { isAuthenticated } = useAuth();
   const [history, setHistory] = useState<UIHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEco, setFilterEco] = useState('ALL');
   const [filterDecision, setFilterDecision] = useState('ALL');
+  const [myScansOnly, setMyScansOnly] = useState(false);
 
   const fetchHistory = async () => {
     setLoading(true);
-    const data = await getScans();
+    const data = await getScans(myScansOnly);
     setHistory(data);
     setLoading(false);
   };
 
   useEffect(() => {
     fetchHistory();
-  }, [refreshTrigger]);
+  }, [refreshTrigger, myScansOnly]);
 
   // Filtered dataset
   const filtered = useMemo(() => {
@@ -54,6 +57,33 @@ export const ScanHistory: React.FC<ScanHistoryProps> = ({ onSelectScan, refreshT
           </div>
 
           <div className="flex items-center gap-2">
+            {isAuthenticated && (
+              <div className="flex bg-slate-100 p-0.5 rounded-xl border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setMyScansOnly(false)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    !myScansOnly
+                      ? 'bg-white text-slate-800 shadow-soft-xs'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  All Scans
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMyScansOnly(true)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
+                    myScansOnly
+                      ? 'bg-pastel-lavender-500 text-white shadow-soft-xs'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <User className="w-3 h-3" />
+                  <span>My Scans</span>
+                </button>
+              </div>
+            )}
             <button
               onClick={fetchHistory}
               disabled={loading}

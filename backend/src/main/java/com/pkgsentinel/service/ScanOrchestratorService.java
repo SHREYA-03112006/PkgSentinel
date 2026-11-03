@@ -226,6 +226,11 @@ public class ScanOrchestratorService {
     }
 
     @Transactional(readOnly = true)
+    public Optional<ScanJobEntity> getScanJob(UUID jobId) {
+        return scanJobRepository.findById(jobId);
+    }
+
+    @Transactional(readOnly = true)
     public Optional<ScanReportResponse> getScanReport(UUID jobId) {
         return scanJobRepository.findById(jobId).map(this::mapToReportResponse);
     }
@@ -233,6 +238,13 @@ public class ScanOrchestratorService {
     @Transactional(readOnly = true)
     public Page<ScanReportResponse> getRecentScans(int page, int size) {
         return scanJobRepository.findAllByOrderByCreatedAtDesc(PageRequest.of(page, size))
+            .map(this::mapToReportResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ScanReportResponse> getUserRecentScans(String username, int page, int size) {
+        String actor = "USER:" + username;
+        return scanJobRepository.findByTriggeredByOrderByCreatedAtDesc(actor, PageRequest.of(page, size))
             .map(this::mapToReportResponse);
     }
 

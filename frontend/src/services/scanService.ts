@@ -100,8 +100,8 @@ export async function scanPackage({
 /**
  * Get recent scan history items
  */
-export async function getScans() {
-  const result = await getScanHistory(0, 50);
+export async function getScans(myScansOnly: boolean = false) {
+  const result = await getScanHistory(0, 50, myScansOnly);
   return result.items;
 }
 

@@ -9,9 +9,18 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://localhost:8080',
-        changeOrigin: true
+        changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('proxyRes', (proxyRes) => {
+            // Guarantee that any upstream WWW-Authenticate: Basic challenge is stripped
+            // so Chrome / Chromium browsers never trigger a native modal credentials dialog
+            const authHeader = proxyRes.headers['www-authenticate'];
+            if (authHeader && String(authHeader).toLowerCase().includes('basic')) {
+              delete proxyRes.headers['www-authenticate'];
+            }
+          });
+        }
       }
     }
   }
 });
-

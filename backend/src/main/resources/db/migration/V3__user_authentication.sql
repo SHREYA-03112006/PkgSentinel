@@ -24,3 +24,4 @@ CREATE TABLE IF NOT EXISTS user_sessions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON user_sessions (user_id);
+

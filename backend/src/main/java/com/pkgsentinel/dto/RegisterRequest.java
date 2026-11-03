@@ -21,3 +21,4 @@ public record RegisterRequest(
     @Size(min = 2, max = 128, message = "Full name must be between 2 and 128 characters")
     String fullName
 ) {}
+
