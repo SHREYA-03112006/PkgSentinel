@@ -64,6 +64,11 @@ CODE_EXTENSIONS = {
     ".php", ".rb", ".pl",
 }
 
+TEST_OR_DOCS_PATH_PATTERN = re.compile(
+    r"(^|[/\\])(tests?|fixtures?|examples?|samples?|demos?|benchmarks?|docs?)[/\\]|(^|[/\\])test_[^/\\]+\.py$|(^|[/\\])[^/\\]+_test\.py$|(^|[/\\])conftest\.py$",
+    re.IGNORECASE,
+)
+
 # Regex to extract string literals from source code
 STRING_LITERAL_REGEX = re.compile(r"""(?:["']{1,3})([^"'\r\n]{120,})(?:["']{1,3})""")
 
@@ -138,14 +143,15 @@ class EntropyAnalyzer:
 
         # Calculate whole-file entropy
         file_entropy = calculate_shannon_entropy(content)
+        is_test = bool(TEST_OR_DOCS_PATH_PATTERN.search(normalized_path))
 
         if file_entropy >= HIGH_ENTROPY_FILE_THRESHOLD and len(content) > 1024:
             findings.append(SecurityFinding(
                 module="ENTROPY_ANALYZER",
                 rule_id="OBFUSCATION_HIGH_ENTROPY_FILE",
                 category=FindingCategory.OBFUSCATION,
-                severity=Severity.MEDIUM,  # Explicitly capped per architecture constraints
-                confidence=0.75,
+                severity=Severity.LOW if is_test else Severity.MEDIUM,
+                confidence=0.40 if is_test else 0.75,
                 title="High-Entropy File Content (Possible Packing/Obfuscation)",
                 description=(
                     f"File exhibits abnormally high Shannon entropy ({file_entropy:.2f} bits/byte). "
@@ -156,12 +162,13 @@ class EntropyAnalyzer:
                     "entropy": file_entropy,
                     "threshold": HIGH_ENTROPY_FILE_THRESHOLD,
                     "sample_size_bytes": len(content),
+                    "context": "TEST_OR_FIXTURE" if is_test else "PROD",
                 },
                 detection_method="SHANNON_ENTROPY",
             ))
 
-        # Check for embedded high-entropy string literals in code files
-        if ext in CODE_EXTENSIONS and len(findings) == 0:
+        # Check for embedded high-entropy string literals in production code files (exclude test data)
+        if ext in CODE_EXTENSIONS and len(findings) == 0 and not is_test:
             try:
                 text_content = content.decode("utf-8", errors="ignore")
                 for match in STRING_LITERAL_REGEX.finditer(text_content):
@@ -193,4 +200,3 @@ class EntropyAnalyzer:
                 pass
 
         return findings
-

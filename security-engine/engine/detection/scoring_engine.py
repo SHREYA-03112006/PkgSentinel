@@ -18,17 +18,18 @@ SEVERITY_WEIGHTS = {
     Severity.LOW: 3.0,
 }
 
-DIMINISHING_RETURNS = [1.0, 0.35, 0.15, 0.05]
+DIMINISHING_RETURNS = [1.0, 0.35, 0.15, 0.05, 0.02, 0.0]
 
 
 def get_diminishing_multiplier(occurrence_index: int) -> float:
     """
     Returns non-linear diminishing factor based on repeat occurrences of the same rule.
     Prevents benign patterns replicated across many files from inflating risk score.
+    Saturates after 5 occurrences to prevent unbounded accumulation.
     """
     if occurrence_index < len(DIMINISHING_RETURNS):
         return DIMINISHING_RETURNS[occurrence_index]
-    return DIMINISHING_RETURNS[-1]
+    return 0.0
 
 
 def deduplicate_findings(findings: List[SecurityFinding]) -> List[SecurityFinding]:
@@ -176,4 +177,3 @@ class RiskScoringEngine:
             analysis_coverage=analysis_coverage,
             findings=deduped,
         )
-

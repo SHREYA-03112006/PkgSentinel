@@ -147,10 +147,30 @@ def test_scoring_diminishing_returns_on_repeat_rule_findings():
     # 2nd: 3.0 * 0.35 * 0.40 = 0.42
     # 3rd: 3.0 * 0.15 * 0.40 = 0.18
     # 4th: 3.0 * 0.05 * 0.40 = 0.06
-    # 5th: 3.0 * 0.05 * 0.40 = 0.06
-    # Expected S_raw = 1.20 + 0.42 + 0.18 + 0.06 + 0.06 = 1.92
+    # 5th: 3.0 * 0.02 * 0.40 = 0.024
+    # Expected S_raw = 1.20 + 0.42 + 0.18 + 0.06 + 0.024 = 1.884
     rep = scorer.compute_verdict("job-diminish", findings, {"AST": "COMPLETED"})
-    assert rep.raw_score == pytest.approx(1.92, 0.05)
+    assert rep.raw_score == pytest.approx(1.88, 0.05)
+    assert rep.risk_score < 10.0
+    assert rep.verdict == Verdict.SAFE
+
+
+def test_multiple_repeated_generic_subprocess_calls_never_exceeds_safe():
+    scorer = RiskScoringEngine()
+    # 30 repeated generic subprocess findings across 30 files in a large package
+    findings = [
+        SecurityFinding(
+            module="PYTHON_AST_ANALYZER", rule_id="PY_SUBPROCESS_SPAWN",
+            category=FindingCategory.STATIC_CODE, severity=Severity.LOW,
+            confidence=0.40 if i < 2 else 0.25,
+            title=f"Process Execution {i}", description="subprocess call",
+            affected_file=f"pandas/tests/module_{i}.py"
+        )
+        for i in range(30)
+    ]
+    rep = scorer.compute_verdict("job-subprocess-repeat", findings, {"STATIC_CODE": "COMPLETED"})
+    # Cumulative raw score saturates at ~1.8
+    assert rep.raw_score < 2.5
     assert rep.risk_score < 10.0
     assert rep.verdict == Verdict.SAFE
 
@@ -161,7 +181,6 @@ def test_benign_framework_flask_benchmark_verdict():
     # 1. flask/config.py: exec in from_pyfile -> PY_DYNAMIC_EXECUTION, LOW, 0.40
     # 2. flask/cli.py: eval in shell_command -> PY_DYNAMIC_EXECUTION, LOW, 0.40
     # 3. flask/helpers.py: __import__ in find_package -> PY_DYNAMIC_IMPORT, LOW, 0.35
-    # (RECORD file in .dist-info is excluded by entropy analyzer)
     flask_findings = [
         SecurityFinding(
             module="PYTHON_AST_ANALYZER", rule_id="PY_DYNAMIC_EXECUTION",
@@ -180,8 +199,51 @@ def test_benign_framework_flask_benchmark_verdict():
         ),
     ]
     rep = scorer.compute_verdict("flask-benchmark", flask_findings, {"STATIC_CODE": "COMPLETED"})
-    # Risk score must be comfortably below SUSPICIOUS threshold (30.0)
     assert rep.risk_score < 15.0
     assert rep.verdict == Verdict.SAFE
 
 
+def test_benign_library_pandas_benchmark_verdict():
+    scorer = RiskScoringEngine()
+    # Simulating context-aware findings for pandas:
+    # Subprocesses in localization, clipboard, and tests (all LOW)
+    # Secret key mock in conftest fixture (LOW)
+    # Dynamic imports in helpers (LOW)
+    # Dynamic execution in tests (LOW)
+    # Direct network connection for urlopen in common.py (MEDIUM)
+    pandas_findings = [
+        SecurityFinding(
+            module="PYTHON_AST_ANALYZER", rule_id="PY_SUBPROCESS_SPAWN",
+            category=FindingCategory.STATIC_CODE, severity=Severity.LOW, confidence=0.40,
+            title="System Process Execution", description="localization.py", affected_file="pandas/_config/localization.py"
+        ),
+        SecurityFinding(
+            module="PYTHON_AST_ANALYZER", rule_id="PY_SUBPROCESS_SPAWN",
+            category=FindingCategory.STATIC_CODE, severity=Severity.LOW, confidence=0.40,
+            title="System Process Execution", description="clipboard.py", affected_file="pandas/io/clipboard/__init__.py"
+        ),
+        SecurityFinding(
+            module="PYTHON_AST_ANALYZER", rule_id="PY_SUBPROCESS_SPAWN",
+            category=FindingCategory.STATIC_CODE, severity=Severity.LOW, confidence=0.25,
+            title="Test Process Execution", description="test_common.py", affected_file="pandas/tests/test_common.py"
+        ),
+        SecurityFinding(
+            module="PYTHON_AST_ANALYZER", rule_id="PY_SECRET_ENV_HARVESTING",
+            category=FindingCategory.STATIC_CODE, severity=Severity.LOW, confidence=0.30,
+            title="Test Reference to Sensitive Env Key", description="conftest.py", affected_file="pandas/tests/io/conftest.py"
+        ),
+        SecurityFinding(
+            module="PYTHON_AST_ANALYZER", rule_id="PY_NETWORK_SOCKET_ACCESS",
+            category=FindingCategory.STATIC_CODE, severity=Severity.MEDIUM, confidence=0.70,
+            title="Direct Network Connection", description="common.py", affected_file="pandas/io/common.py"
+        ),
+        SecurityFinding(
+            module="PYTHON_AST_ANALYZER", rule_id="PY_DYNAMIC_IMPORT",
+            category=FindingCategory.STATIC_CODE, severity=Severity.LOW, confidence=0.35,
+            title="Dynamic Module Import", description="_optional.py", affected_file="pandas/compat/_optional.py"
+        ),
+    ]
+    rep = scorer.compute_verdict("pandas-benchmark", pandas_findings, {"STATIC_CODE": "COMPLETED"})
+    # Risk score must be comfortably SAFE (< 30.0), not BLOCK/MALICIOUS (84.6)
+    assert rep.risk_score < 25.0
+    assert rep.verdict == Verdict.SAFE
